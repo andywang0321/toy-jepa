@@ -5,10 +5,10 @@ An AdamW implementation in JAX, for learning purposes
 import jax
 import jax.numpy as jnp
 
-from .types import AdamWState, PyTree
+from .types import AdamWState, PyTree, MLPParams
 
 
-def adamw_init(model_params: PyTree) -> AdamWState:
+def adamw_init(model_params: PyTree | MLPParams) -> AdamWState:
     return AdamWState(
         t=jnp.array(0, dtype=jnp.int32),
         m=jax.tree.map(jnp.zeros_like, model_params),

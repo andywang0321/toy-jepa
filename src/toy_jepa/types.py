@@ -44,3 +44,5 @@ class AdamWState(NamedTuple):
 class TrainState(NamedTuple):
     params: PyTree
     opt_state: AdamWState
+
+type MLPParams = list[dict[str, jax.Array]]
