@@ -6,10 +6,11 @@ The goal is understanding, not benchmark performance. By the end you should be a
 
 ## The question
 
-Given a frame `x_t`, learn an encoder `f` and a predictor `g` such that
+Given two context frames `(x_{t-1}, x_t)`, learn a frame encoder, a fusion module, and a predictor such that
 
 ```
-g(f(x_t)) ≈ f(x_{t+k})
+c_t = fuse(f_frame(x_{t-1}), f_frame(x_t))
+g(c_t) ≈ f_frame(x_{t+k})
 ```
 
 without reconstructing pixels. Then ask: what does the representation capture, when does it collapse, and which fixes actually help?
@@ -39,7 +40,7 @@ These are stretch goals, not requirements. The point is to finish a small, clean
 ## Rules of the game
 
 1. **Vanilla JAX.** Only `jax`, `jax.numpy`, `numpy`, `matplotlib`, `pytest` (plus `tqdm` if you want). No Flax, Equinox, Haiku, or other model frameworks. No classes with methods (a frozen dataclass or NamedTuple for static config is fine).
-2. **Params are PyTrees.** A model is `init_params(rng, config) -> params` and `apply(params, x) -> y`. Params are nested dicts/tuples of arrays.
+2. **Params are PyTrees.** A model is `init_params(rng, config) -> params` and `apply(params, x) -> y`. Params are named records (`NamedTuple`) of arrays, defined in `types.py`.
 3. **Pure core, impure shell.** Model/loss/optimizer/train-step functions do not read files, plot, print, or touch global RNG. The scripts under `scripts/` handle seeding, logging, checkpointing, and plotting. The data boundary is `mnist_utils.py` (IDX I/O) and `data.py` (`generate_dataset`); plotting is in `viz.py`.
 4. **One level of abstraction per function.** `linear`, `layer_norm`, `conv`, `encoder`, `predictor`, `jepa_loss`, `train_step`, `train_loop`. Each does one thing; no function both loads data and trains.
 5. **JIT at the boundary.** `train_step` is a pure function wrapped in `jax.jit` at the script level. Use `jax.eval_shape` to check shapes and `jax.make_jaxpr` to inspect.
@@ -52,7 +53,7 @@ Shared aliases and dataset records live in `types.py`; constants live in `consta
 
 - Generated Moving MNIST: `(N, T, 64, 64)`, `N=10_000`, `T=20`.
 - Split by sequence: 8000 train / 1000 val / 1000 test. Never split by frame.
-- Pairs `(x_t, x_{t+k})`; `k=1` default, `k=4` ablation.
+- Context `(x_{t-1}, x_t)`, target `x_{t+k}`; `k=4` default, `k=1` ablation. Two frames are needed to infer velocity.
 - Normalize to `[0, 1]`; no augmentation in v1.
 - Use a subset for fast iteration by calling `generate_dataset(SEED, 2000)`; scale up for final runs.
 
@@ -84,9 +85,13 @@ Record positions even when the digits overlap; the renderer composites with max,
 
 ## Models
 
-### Encoder
+### Frame encoder
 
-3 conv layers: 32, 64, 128 channels; 3×3 kernels; stride 2; GroupNorm; GELU; global average pool; linear to `d=128`; final LayerNorm on `z`. Use the same encoder and predictor in every arm; the final LayerNorm is an architecture choice, not an anti-collapse fix. Measure collapse with rank/probes, not the loss.
+Per frame: 3 conv layers (32, 64, 128 channels; 3×3; stride 2; GroupNorm; GELU), then **flatten** the `8×8×128` feature map to preserve position, a linear projection to `d=128`, and a final LayerNorm. Global average pooling is deliberately avoided: it makes the representation translation-invariant, so the model cannot know where the digits are and the probes fail.
+
+### Context fusion
+
+Encode `x_{t-1}` and `x_t` with the shared frame encoder, concatenate the two 128-d features, and fuse with `256 -> 256 -> 128` (GELU, linear). The result is `c_t`, the context representation used by the predictor and probes.
 
 ### Predictor
 
@@ -94,7 +99,7 @@ Record positions even when the digits overlap; the renderer composites with max,
 
 ### Baseline A — pixel future predictor
 
-Same encoder and predictor trunk; a pixel head `128 -> 512 -> 4096` reshaped to `64×64`; MSE to `x_{t+k}`. It must model texture/background, not just the state. This is the generative contrast. The pixel head is larger than the latent head; that is inherent to the objective, so compare representation quality (probes/rank), not raw loss values.
+Same frame encoder, fusion, and predictor trunk; a pixel head `128 -> 512 -> 4096` reshaped to `64×64`; MSE to `x_{t+k}`. It must model texture/background, not just the state. This is the generative contrast. Compare against persistence (`x_t`) and compare representation quality (probes/rank), not raw loss values.
 
 ### Baseline B (optional) — supervised state predictor
 
@@ -102,12 +107,13 @@ Same encoder; an 8-d head for `(x, y, vx, vy)` of both digits at `x_{t+k}` (or a
 
 ### JEPA variants
 
-- **Barebones:** shared encoder for context and target, no stop-grad:
-  `L = || g(f(x_t)) - f(x_{t+k}) ||²`.
-- **Stop-grad:** `L = || g(f(x_t)) - sg(f(x_{t+k})) ||²`.
-- **EMA:** `L = || g(f(x_t)) - sg(f_ema(x_{t+k})) ||²`, with
+- **Barebones:** shared frame encoder for context and target, no stop-grad:
+  `L = || g(c_t) - f_frame(x_{t+k}) ||²`, where
+  `c_t = fuse(f_frame(x_{t-1}), f_frame(x_t))`.
+- **Stop-grad:** `L = || g(c_t) - sg(f_frame(x_{t+k})) ||²`.
+- **EMA:** `L = || g(c_t) - sg(f_ema(x_{t+k})) ||²`, with
   `f_ema ← decay * f_ema + (1 - decay) * f`.
-- **EMA + SIGReg:** `L = L_JEPA + λ * L_SIGReg(f(x_t))`.
+- **EMA + SIGReg:** `L = L_JEPA + λ * L_SIGReg(c_t)`.
 
 Use separate loss functions for the variants rather than a pile of boolean flags; the differences should be visible in the code.
 
@@ -120,7 +126,7 @@ Follow LeJEPA §3 for the exact statistic. The shape is:
 L_SIGReg = (1/M) Σ_m Σ_j w_j |φ̂_m(t_j) - exp(-t_j²/2)|²
 ```
 
-where `u_m` are random unit directions, `t_j` is a quadrature grid, and `w_j` are quadrature weights. Apply it to the context embeddings `z_t = f(x_t)`; do not apply it to the EMA target. Start with `M=256`, 17 grid points in `[0, 3]`, and sweep `λ ∈ {0.01, 0.1, 1.0}`.
+where `u_m` are random unit directions, `t_j` is a quadrature grid, and `w_j` are quadrature weights. Apply it to the context embeddings `c_t`; do not apply it to the EMA target. Start with `M=256`, 17 grid points in `[0, 3]`, and sweep `λ ∈ {0.01, 0.1, 1.0}`.
 
 SIGReg is not guaranteed to help. In the supervised JEPA-Policy setting it hurt at weight 0.09. Here, in pure JEPA, it may help. Report what you see, including negative results.
 
@@ -143,7 +149,7 @@ Compute probes and metrics in NumPy float64 after transferring features; trainin
 
 ## Probes
 
-Freeze the **online** encoder, extract features from **context frames** `x_t` for the train/test splits, then:
+Freeze the **online** encoder, extract context features `c_t` from `(x_{t-1}, x_t)` for the train/test splits, then:
 
 - **Position/velocity:** closed-form ridge regression; report test R².
 - **Digit identity:** kNN (k=5, cosine) or nearest centroid; report accuracy.
@@ -167,15 +173,19 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 ### M0 — Data + JAX warm-up
 
 - Generate, split, and visualize Moving MNIST in memory; inspect a few frames, labels, positions, and velocities.
+- Note: M0 predicts a single frame's state, so velocity is only memorized for 8 samples. M1 fixes this with two context frames.
 - Write a 2-layer MLP with manual AdamW, `jit`, `vmap`, and `grad`.
 - Overfit 8 samples; gradient check; shape tests.
 - **Done when:** the MLP overfits, the data splits are disjoint, and the labels/positions look right.
 
 ### M1 — Baseline A (pixel future predictor)
 
-- CNN encoder + MLP predictor + pixel head.
-- Train with pixel MSE; evaluate reconstruction and probes.
-- **Done when:** the baseline trains, the probes run, and the collapse dashboard has its first column.
+- Two-frame context `(x_{t-1}, x_t)`, target `x_{t+k}`, `k=4`.
+- Frame encoder + context fusion + predictor + pixel head; pixel MSE.
+- Compare against persistence (`x_t`); evaluate on a fixed val/test set.
+- Probes on `c_t`: digit identity, position, velocity; raw-pixel reference.
+- Report rank, variance, cosine; first column of the collapse dashboard.
+- **Done when:** pixel MSE beats persistence, probes run, and the dashboard has its first column.
 
 ### M2 — Barebones JEPA
 
@@ -281,17 +291,19 @@ src/toy_jepa/
   types.py         # shared type aliases and dataset records
   mnist_utils.py   # MNIST IDX loading, I/O boundary
   data.py          # generate_dataset, in-memory pool
-  models.py        # init/apply for encoder, predictor, heads (pure)
-  losses.py        # pixel, JEPA, SIGReg losses (pure)
-  optim.py         # manual AdamW (pure)
-  ema.py           # EMA update (pure)
-  metrics.py       # rank, variance, cosine, probes (NumPy/JAX)
-  train.py         # pure train_step
-  viz.py           # plotting (impure)
+  models/
+    mlp.py            # affine layers (pure)
+    cnn.py            # conv blocks + CNN built from them (pure)
+    norm.py           # group/layer norm (pure)
+    pixel.py          # pixel-future model (pure)
+  metrics.py          # rank, variance, cosine, probes
+  optim.py            # manual AdamW (pure)
+  train.py            # generic pure train step + losses
+  viz.py              # plotting (impure)
 scripts/
+  m0_overfit.py       # M0 overfit check
+  m1_pixel.py         # M1 pixel baseline
   visualize_data.py   # play a few samples (impure)
-  train.py            # impure entry point
-  evaluate.py         # impure entry point
 tests/
 ```
 

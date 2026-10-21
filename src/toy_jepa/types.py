@@ -1,18 +1,21 @@
-"""Shared type aliases and dataset records.
+"""Shared type aliases and records.
 
 Kept separate from ``constants.py`` so the project vocabulary lives in one
 place. Import this module relatively (``from .types import ...``) so it does not
 shadow the standard-library ``types`` module.
+
+Convention:
+- ``type`` aliases for array/container vocabulary.
+- ``NamedTuple`` records for parameter trees, dataset rows, and training state.
 """
 
 from __future__ import annotations
 
-from typing import NamedTuple
-
-import numpy as np
-from numpy.typing import NDArray
+from typing import Generic, NamedTuple, TypeVar
 
 import jax
+import numpy as np
+from numpy.typing import NDArray
 
 type UInt8Array = NDArray[np.uint8]
 type Int8Array = NDArray[np.int8]
@@ -21,28 +24,69 @@ type Float32Array = NDArray[np.float32]
 
 
 class MovingMNIST(NamedTuple):
-    """A labeled Moving MNIST dataset. NamedTuple is better than dataclass for simple applications."""
-    frames: UInt8Array # (N, T, H, W) uint8 frames.
-    digit_label: Int8Array # (N, 2) int8 MNIST class labels in [0, 9].
-    digit_index: Int32Array # (N, 2) int32 indices into the source MNIST images.
-    position: Float32Array # (N, T, 2, 2) float32 top-left (x, y) per digit, in pixels.
-    velocity: Float32Array # (N, T, 2, 2) float32 (vx, vy) per digit, in pixels/frame.
-    split: Int8Array # (N,) int8 split id: 0=train, 1=val, 2=test.
+    """A labeled Moving MNIST dataset."""
+    frames: UInt8Array  # (N, T, H, W) uint8 frames.
+    digit_label: Int8Array  # (N, 2) int8 MNIST class labels in [0, 9].
+    digit_index: Int32Array  # (N, 2) int32 indices into the source images.
+    position: Float32Array  # (N, T, 2, 2) top-left (x, y), pixels.
+    velocity: Float32Array  # (N, T, 2, 2) (vx, vy), pixels/frame.
+    split: Int8Array  # (N,) split id: 0=train, 1=val, 2=test.
 
 
-# A PyTree whose leaves are JAX arrays (dict/list/tuple containers).
-type PyTree = (
-    jax.Array | list[PyTree] | tuple[PyTree, ...] | dict[str, PyTree]
-)
+# General array-leaf PyTree; model parameters use the concrete records below.
+type PyTree = jax.Array | list[PyTree] | tuple[PyTree, ...] | dict[str, PyTree]
 
-class AdamWState(NamedTuple):
-    """State of the AdamW optimizer."""
-    t: jax.Array    # timestep
-    m: PyTree    # 1st moment vector (grad moving avg)
-    v: PyTree    # 2nd moment vector (grad**2 moving avg)
 
-class TrainState(NamedTuple):
-    params: PyTree
-    opt_state: AdamWState
+class AffineParams(NamedTuple):
+    """A ``w x + b`` operation, shared by linear and convolutional layers."""
+    w: jax.Array
+    b: jax.Array
 
-type MLPParams = list[dict[str, jax.Array]]
+
+class NormParams(NamedTuple):
+    """Affine parameters for a normalization layer."""
+    gamma: jax.Array
+    beta: jax.Array
+
+
+class MLPParams(NamedTuple):
+    """Parameters of a stack of affine layers."""
+    blocks: list[AffineParams]
+
+
+class ConvBlockParams(NamedTuple):
+    """One ``conv -> norm`` block of the frame encoder."""
+    conv: AffineParams
+    norm: NormParams
+
+
+class CNNParams(NamedTuple):
+    """Parameters of the convolutional frame encoder."""
+    blocks: list[ConvBlockParams]
+    fc: MLPParams
+    ln: NormParams
+
+
+class PixelParams(NamedTuple):
+    """Parameters of the pixel-future baseline."""
+    encoder: CNNParams
+    fusion: MLPParams
+    predictor: MLPParams
+    pixel_head: MLPParams
+
+
+# Optimizer state is generic over whatever concrete parameter record a model uses.
+ParamsT = TypeVar("ParamsT")
+
+
+class AdamWState(NamedTuple, Generic[ParamsT]):
+    """AdamW moments, mirroring the structure of the model parameters."""
+    t: jax.Array
+    m: ParamsT
+    v: ParamsT
+
+
+class TrainState(NamedTuple, Generic[ParamsT]):
+    """Parameters plus the optimizer state."""
+    params: ParamsT
+    opt_state: AdamWState[ParamsT]

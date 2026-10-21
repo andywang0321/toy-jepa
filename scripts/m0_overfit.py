@@ -24,7 +24,7 @@ from toy_jepa.constants import CANVAS_SIZE, DIGIT_SIZE, SEED, SPEED_RANGE
 from toy_jepa.data import generate_dataset
 from toy_jepa.models.mlp import init_mlp
 from toy_jepa.optim import adamw_init
-from toy_jepa.train import train_step
+from toy_jepa.train import mlp_mse_loss, train_step
 from toy_jepa.types import MLPParams, MovingMNIST, TrainState
 
 NUM_SAMPLES = 8
@@ -59,7 +59,7 @@ def make_batch(dataset: MovingMNIST, num_samples: int) -> tuple[jax.Array, jax.A
     )
 
 
-def init_state(key: jax.Array, input_dim: int, output_dim: int) -> TrainState:
+def init_state(key: jax.Array, input_dim: int, output_dim: int) -> TrainState[MLPParams]:
     """Initialize the MLP and its AdamW moments."""
     params: MLPParams = init_mlp(key, [input_dim, HIDDEN_DIM, output_dim])
     return TrainState(params=params, opt_state=adamw_init(params))
@@ -74,11 +74,13 @@ def train(
     log_every: int,
     lr: float,
     weight_decay: float,
-) -> tuple[TrainState, list[tuple[int, float]]]:
+) -> tuple[TrainState[MLPParams], list[tuple[int, float]]]:
     """Run full-batch training and return the final state and loss history."""
     state = init_state(key, x.shape[1], y.shape[1])
     step = jax.jit(
-        lambda state, batch: train_step(state, batch, lr=lr, weight_decay=weight_decay)
+        lambda state, batch: train_step(
+            state, batch, mlp_mse_loss, lr=lr, weight_decay=weight_decay
+        )
     )
 
     history: list[tuple[int, float]] = []

@@ -9,7 +9,7 @@ from __future__ import annotations
 import gzip
 import struct
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any
 
 import numpy as np
 
@@ -17,7 +17,7 @@ from .constants import MNIST_DIR
 from .types import UInt8Array
 
 
-def _open_binary(path: Path) -> BinaryIO:
+def _open_binary(path: Path) -> Any:
     """Open a plain or gzipped file for binary reading."""
     return gzip.open(path, "rb") if path.suffix == ".gz" else path.open("rb")
 

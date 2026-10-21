@@ -13,8 +13,5 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 
-# Training outputs
-runs/
-
 # MacOS
 .DS_Store

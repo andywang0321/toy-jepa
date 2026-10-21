@@ -192,3 +192,58 @@ def generate_dataset(seed: int = SEED, num_samples: int = NUM_SAMPLES) -> Moving
         velocity=velocities[order],
         split=split[order],
     )
+
+
+def pair_indices(
+    dataset: MovingMNIST,
+    split: int,
+    k: int,
+) -> tuple[Int32Array, Int32Array]:
+    """Return all ``(sequence, time)`` pairs for a context window.
+
+    The context is ``(x_{t-1}, x_t)`` and the target is ``x_{t+k}``. ``t``
+    ranges over ``[1, T - k)`` so the target always exists.
+    """
+    if k < 1:
+        raise ValueError("k must be at least 1.")
+
+    sequences = np.flatnonzero(dataset.split == split)
+    times = np.arange(1, dataset.frames.shape[1] - k)
+    if len(sequences) == 0 or len(times) == 0:
+        raise ValueError(f"No pairs for split={split}, k={k}.")
+
+    sequence_grid, time_grid = np.meshgrid(sequences, times, indexing="ij")
+    return (
+        sequence_grid.ravel().astype(np.int32),
+        time_grid.ravel().astype(np.int32),
+    )
+
+
+def make_context_target(
+    dataset: MovingMNIST,
+    sequence_idx: Int32Array,
+    time_idx: Int32Array,
+    k: int,
+) -> tuple[UInt8Array, UInt8Array]:
+    """Return context ``(x_{t-1}, x_t)`` and target ``x_{t+k}``."""
+    context = np.stack(
+        [
+            dataset.frames[sequence_idx, time_idx - 1],
+            dataset.frames[sequence_idx, time_idx],
+        ],
+        axis=1,
+    )
+    target = dataset.frames[sequence_idx, time_idx + k]
+    return context, target
+
+
+def state_at(
+    dataset: MovingMNIST,
+    sequence_idx: Int32Array,
+    time_idx: Int32Array,
+) -> tuple[Float32Array, Float32Array, Int8Array]:
+    """Return current position, velocity, and digit labels for each pair."""
+    position = dataset.position[sequence_idx, time_idx].reshape(-1, 4)
+    velocity = dataset.velocity[sequence_idx, time_idx].reshape(-1, 4)
+    labels = dataset.digit_label[sequence_idx]
+    return position, velocity, labels
