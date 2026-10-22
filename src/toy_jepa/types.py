@@ -97,3 +97,9 @@ class TrainState(NamedTuple, Generic[ParamsT]):
     """Parameters plus the optimizer state."""
     params: ParamsT
     opt_state: AdamWState[ParamsT]
+
+
+class JEPAEMAState(NamedTuple):
+    """Online parameters/optimizer state plus a slowly moving target encoder."""
+    train_state: TrainState[JEPABaseParams]
+    target_encoder: CNNParams

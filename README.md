@@ -116,7 +116,7 @@ Train with pixel MSE only. There is no supervised state head and no state loss. 
   `f_ema ← decay * f_ema + (1 - decay) * f`.
 - **EMA + SIGReg:** `L = L_JEPA + λ * L_SIGReg(c_t)`.
 
-Use separate loss functions for the variants rather than a pile of boolean flags; the differences should be visible in the code.
+Use separate loss functions for the variants rather than a pile of boolean flags; the differences should be visible in the code. All four arms share one runner (`src/toy_jepa/jepa_experiment.py`) and the exact M1 evaluation protocol: the same readout contexts/keys, the same frozen-feature MLP readout, and the same state normalization. `c_t` is the primary readout; `z_hat` is secondary.
 
 ### SIGReg
 
@@ -198,28 +198,30 @@ New M1 runs write to `runs/m1_pixel/`. The old `runs/m1_baseline/` directory is 
 
 ### M2 — Barebones JEPA
 
-- `models/jepa_base.py` + `JEPABaseParams`: frame encoder, fusion, predictor.
-- Replace the pixel target with the encoder's latent of `x_{t+k}`.
-- Shared encoder, no stop-grad; `jepa_base_loss` intentionally lets gradients flow through the target.
-- `scripts/m2_jepa.py` trains and writes `runs/m2_jepa/`.
-- Dashboard (`collapse.png`): loss + latent persistence, effective rank, variance, cosine, position/velocity R², digit accuracy.
-- **Done when:** the loss/rank/probe curves are logged and you can say whether collapse occurred.
+- Shared frame encoder for context and target, no stop-grad; `jepa_base_loss` intentionally lets gradients flow through the target.
+- `src/toy_jepa/jepa_experiment.py` is the shared runner for M2–M5: `JEPAConfig` holds the variant, run directory, and shared constants; `run_jepa` trains, evaluates, and fits the common readout.
+- `scripts/m2_jepa.py` sets `variant="base"` and writes `runs/m2_jepa/` (`config.json`, `metrics.csv`, `probes.csv`, `dashboard.png`).
+- Dashboard: loss + latent persistence, effective rank, variance, cosine, and the final readout state MSE for `c_t` and `z_hat`.
+- **Done when:** the loss/rank curves and final readout are logged and you can say whether collapse occurred.
 
 ### M3 — Stop-grad
 
-- Add `jax.lax.stop_gradient` to the target.
-- Compare rank/probes to M2.
+- `jepa_stopgrad_loss` adds `jax.lax.stop_gradient` to the shared-encoder target; the model and data are otherwise identical to M2.
+- `scripts/m3_stopgrad.py` writes `runs/m3_stopgrad/`.
+- Compare rank, collapse metrics, and readout MSE to M2.
 - **Done when:** you can explain what stop-grad does to the gradient path, and whether it fixed collapse.
 
 ### M4 — EMA
 
-- Add an EMA target encoder; update it outside the optimizer.
+- `ema.py::ema_update` moves a `CNNParams` target toward the online encoder. `JEPAEMAState` pairs the online `TrainState` with the target encoder; `ema_train_step` updates the online model with AdamW, then EMA-updates the target outside the optimizer.
+- `scripts/m4_ema.py` writes `runs/m4_ema/`; default decay is 0.99.
 - Compare to M3; sweep `decay ∈ {0.99, 0.996, 0.999}`.
 - **Done when:** the EMA target is stable and the comparison is in the dashboard.
 
 ### M5 — SIGReg
 
-- Implement SIGReg; add it to the context embeddings.
+- `sigreg.py` implements the LeJEPA statistic on `c_t`; `jepa_ema_sigreg_loss` adds `weight * SIGReg(c_t)` to the EMA JEPA loss using a fixed key (`SEED + 5`).
+- `scripts/m5_sigreg.py` writes `runs/m5_sigreg/`; default weight is 0.1.
 - Sweep `λ`; compare "EMA + SIGReg" to "EMA".
 - Optional: "SIGReg without EMA" to isolate the mechanism.
 - **Done when:** you can say whether SIGReg improves rank/probes at some weight, and what it costs.
@@ -310,14 +312,20 @@ src/toy_jepa/
     jepa_base.py      # barebones JEPA model (pure)
   experiment.py       # shared batches, state normalization, collapse metrics
   readout.py          # frozen-feature MLP state readout
+  ema.py              # EMA update for the target encoder (pure)
+  sigreg.py           # SIGReg statistic (pure)
+  jepa_experiment.py  # shared M2-M5 runner: train, evaluate, readout, log
   metrics.py          # rank, variance, cosine, probes, state readout metrics
   optim.py            # manual AdamW (pure)
-  train.py            # generic pure train step + losses
+  train.py            # generic pure train step + M1/JEPA losses + EMA step
   viz.py              # plotting (impure), including the collapse dashboard
 scripts/
   m0_overfit.py       # M0 overfit check
   m1_pixel.py         # M1 pixel-only baseline + common readout
   m2_jepa.py          # M2 barebones JEPA
+  m3_stopgrad.py      # M3 stop-grad JEPA
+  m4_ema.py           # M4 EMA JEPA
+  m5_sigreg.py        # M5 EMA + SIGReg JEPA
   visualize_data.py   # play a few samples (impure)
 tests/
 ```
@@ -354,6 +362,13 @@ Download the MNIST IDX files into `~/data/mnist`, then:
 uv sync
 uv run python scripts/visualize_data.py  # generates a few samples in memory
 uv run pytest -q
+
+# Five core arms (each writes its own runs/<arm>/ directory)
+uv run python scripts/m1_pixel.py
+uv run python scripts/m2_jepa.py
+uv run python scripts/m3_stopgrad.py
+uv run python scripts/m4_ema.py
+uv run python scripts/m5_sigreg.py
 ```
 
 `visualize_data.py` overlays a velocity arrow (scaled 5×) on each digit and prints its label, top-left position, and velocity in the footer. Training entry points will call `generate_dataset(SEED, NUM_SAMPLES)` directly; there is no dataset file to prepare first.
