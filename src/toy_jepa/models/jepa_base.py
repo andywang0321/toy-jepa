@@ -44,7 +44,5 @@ def apply_jepa_base(
     """Return the predicted future latent and the fused context feature."""
     z_prev = apply_cnn(params.encoder, context[:, 0][..., None])
     z_curr = apply_cnn(params.encoder, context[:, 1][..., None])
-    c_t = apply_mlp(
-        params.fusion, jnp.concatenate([z_prev, z_curr], axis=-1)
-    )
+    c_t = apply_mlp(params.fusion, jnp.concatenate([z_prev, z_curr], axis=-1))
     return apply_mlp(params.predictor, c_t), c_t

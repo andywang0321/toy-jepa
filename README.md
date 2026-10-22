@@ -148,6 +148,8 @@ The **collapse dashboard** is one figure with loss, rank, variance, and probe RÂ
 
 Compute probes and metrics in NumPy float64 after transferring features; training stays float32.
 
+See [docs/metrics.md](docs/metrics.md) for a first-principles guide to variance, rank, cosine, state readouts, and how to read the dashboard.
+
 ## Probes
 
 Freeze the **online** encoder, extract context features `c_t` from `(x_{t-1}, x_t)` for the train/test splits, then:
