@@ -14,6 +14,9 @@ NUM_FRAMES: int = 20
 CANVAS_SIZE: int = 64
 DIGIT_SIZE: int = 28
 SPEED_RANGE: tuple[float, float] = (1.0, 3.0)
+# State normalization used by training targets, readouts, and reported MAEs.
+POSITION_SCALE: float = float(CANVAS_SIZE - DIGIT_SIZE)
+VELOCITY_SCALE: float = float(SPEED_RANGE[1])
 TRAIN_FRACTION: float = 0.8
 VAL_FRACTION: float = 0.1
 SEED: int = 0

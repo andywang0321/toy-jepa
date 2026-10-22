@@ -1,4 +1,4 @@
-"""Tests for the two-headed baseline model."""
+"""Tests for the pixel-only baseline model."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 from toy_jepa.models.baseline import apply_baseline, init_baseline
 from toy_jepa.optim import adamw_init
-from toy_jepa.train import baseline_loss, train_step
+from toy_jepa.train import baseline_pixel_loss, train_step
 from toy_jepa.types import TrainState
 
 
@@ -17,14 +17,22 @@ def test_baseline_output_shapes() -> None:
     )
     context = jnp.zeros((2, 2, 64, 64), dtype=jnp.float32)
 
-    pixels, state, z_context, z_hat = apply_baseline(params, context)
+    pixels, c_t, z_hat = apply_baseline(params, context)
 
     assert pixels.shape == (2, 64, 64)
-    assert state.shape == (2, 8)
-    assert z_context.shape == (2, 64)
+    assert c_t.shape == (2, 64)
     assert z_hat.shape == (2, 64)
     assert jnp.all(jnp.isfinite(pixels))
-    assert jnp.all(jnp.isfinite(state))
+    assert jnp.all(jnp.isfinite(c_t))
+    assert jnp.all(jnp.isfinite(z_hat))
+
+
+def test_baseline_has_no_state_head() -> None:
+    params = init_baseline(
+        jax.random.key(0), embed_dim=64, hidden_dim=64
+    )
+
+    assert params._fields == ("encoder", "fusion", "predictor", "pixel_head")
 
 
 def test_baseline_has_finite_gradients() -> None:
@@ -33,13 +41,10 @@ def test_baseline_has_finite_gradients() -> None:
     )
     context = jnp.zeros((2, 2, 64, 64), dtype=jnp.float32)
     target_pixels = jnp.zeros((2, 64, 64), dtype=jnp.float32)
-    target_state = jnp.zeros((2, 8), dtype=jnp.float32)
 
     def loss(p):
-        pixels, state, _, _ = apply_baseline(p, context)
-        return jnp.mean((pixels - target_pixels) ** 2) + jnp.mean(
-            (state - target_state) ** 2
-        )
+        pixels, _, _ = apply_baseline(p, context)
+        return jnp.mean((pixels - target_pixels) ** 2)
 
     grads = jax.grad(loss)(params)
     assert jax.tree.structure(grads) == jax.tree.structure(params)
@@ -56,13 +61,13 @@ def test_baseline_train_step_updates_state() -> None:
     target_pixels = jnp.zeros((2, 64, 64), dtype=jnp.float32)
     target_state = jnp.zeros((2, 8), dtype=jnp.float32)
 
-    def loss_fn(p, batch):
-        return baseline_loss(p, batch, state_weight=1.0)
-
+    # The target state is ignored by the pixel-only loss; keep the canonical
+    # three-entry experiment batch.
+    batch = (context, target_pixels, target_state)
     next_state, loss = train_step(
         state,
-        (context, target_pixels, target_state),
-        loss_fn,
+        batch,
+        baseline_pixel_loss,
         lr=1e-3,
         weight_decay=0.0,
     )

@@ -6,7 +6,9 @@ The goal is understanding, not benchmark performance. By the end you should be a
 
 ## The question
 
-Given two context frames `(x_{t-1}, x_t)`, learn a frame encoder, a fusion module, and a predictor such that
+Given m=2 context frames and a fixed k=4 horizon, which training objective produces context features `c_t` that best support future-state prediction under a fixed-capacity readout? The readout is trained after the model on frozen features, so no auxiliary state loss shapes the representation.
+
+Formally, with two context frames `(x_{t-1}, x_t)`, learn a frame encoder, a fusion module, and a predictor such that
 
 ```
 c_t = fuse(f_frame(x_{t-1}), f_frame(x_t))
@@ -23,7 +25,7 @@ The global-latent predictor here is the same object as JEPA-Policy's future toke
 
 - Moving MNIST, temporal latent prediction.
 - One CNN encoder, one MLP predictor.
-- Baseline (required): same encoder/trunk, pixel head plus supervised state head for `(x, y, vx, vy)`.
+- Baseline (required): same encoder/trunk, pixel-only head; state quality is measured post hoc with a common MLP readout rather than a supervised head.
 - JEPA variants: barebones, stop-grad, EMA, EMA + SIGReg.
 - Probes: digit identity, position, velocity; collapse metrics.
 - 3-seed comparison and a short write-up.
@@ -80,7 +82,7 @@ The returned `MovingMNIST` has:
 | `velocity` | `(N, T, 2, 2)` | `float32` | `(vx, vy)` per digit, pixels/frame |
 | `split` | `(N,)` | `int8` | 0=train, 1=val, 2=test |
 
-Record positions even when the digits overlap; the renderer composites with max, and the labels stay clean. These labels are for the probes and the supervised state head; they are **not** extra JEPA losses. The JEPA target is still the future frame's latent.
+Record positions even when the digits overlap; the renderer composites with max, and the labels stay clean. These labels are for the probes and the post-hoc state readout; they are **not** extra JEPA losses. The JEPA target is still the future frame's latent.
 
 ## Models
 
@@ -96,14 +98,13 @@ Encode `x_{t-1}` and `x_t` with the shared frame encoder, concatenate the two 12
 
 2-layer MLP: `128 -> 256 -> 128`, LayerNorm + GELU. No dropout in v1.
 
-### Baseline — pixel and state heads
+### Baseline — pixel only + common state readout
 
-Same frame encoder, fusion, and predictor trunk; two output heads:
+Same frame encoder, fusion, and predictor trunk, with one output head:
 
-- a pixel head `128 -> 512 -> 4096` reshaped to `64×64`, MSE to `x_{t+k}`;
-- a state head `128 -> 256 -> 8` for `(x, y, vx, vy)` of both digits at `x_{t+k}`.
+- a pixel head `128 -> 512 -> 4096` reshaped to `64×64`, MSE to `x_{t+k}`.
 
-Train jointly with `pixel_mse + state_weight * state_mse`. The pixel head is the generative contrast; the state head is Baseline B, an upper bound on how much state information the shared encoder can carry. Normalize state targets for training and report MAEs in pixels/pixels-per-frame. Compare against persistence (`x_t`) and compare representation quality (probes/rank), not raw loss values.
+Train with pixel MSE only. There is no supervised state head and no state loss. State quality is measured after training: freeze the model, extract `c_t` and `z_hat`, and fit the **common MLP readout** (`128 -> 256 -> 8`, GELU hidden, linear output) to predict the state at `t+k`. The readout sees frozen feature arrays, so it never backpropagates into the encoder. Normalize state targets with position `/ 36` and velocity `/ 3`; report MSE, position MAE in pixels, velocity MAE in pixels/frame, and R². Compare pixels against persistence.
 
 ### JEPA variants
 
@@ -134,7 +135,7 @@ SIGReg is not guaranteed to help. In the supervised JEPA-Policy setting it hurt 
 
 At every evaluation:
 
-- `loss`: total baseline loss (pixel + weighted state), or latent MSE for JEPA.
+- `loss`: pixel MSE for the baseline, or latent MSE for JEPA.
 - `rank`: effective rank / participation ratio of centered features:
   `(Σ σ_i)² / Σ σ_i²`, with `σ_i` the singular values.
 - `var`: mean per-dimension variance.
@@ -142,15 +143,17 @@ At every evaluation:
 - `digit_acc`: kNN accuracy for digit identity (k=5, cosine).
 - `pos_r2`, `vel_r2`: ridge regression R² for position and velocity.
 - `pixel_mse`: pixel-head error for the baseline.
-- `state_mse`: state-head error, plus MAE in pixels and pixels/frame.
+- `state_mse`, `position_mae`, `velocity_mae`, `r2`: frozen-feature MLP readout of the future state.
 
-The **collapse dashboard** is one figure with loss, rank, variance, and probe R²/accuracy on a shared x-axis. A lower loss with a lower rank/probe is the signature of collapse. Loss alone is not evidence of a good representation.
+The **collapse dashboard** is one figure with loss/persistence, rank, variance, and cosine over training, plus final readout state MSE bars. A lower loss with a lower rank/probe is the signature of collapse. Loss alone is not evidence of a good representation.
 
 Compute probes and metrics in NumPy float64 after transferring features; training stays float32.
 
 See [docs/metrics.md](docs/metrics.md) for a first-principles guide to variance, rank, cosine, state readouts, and how to read the dashboard.
 
-## Probes
+## Probes and state readout
+
+The main external metric is the **common post-hoc MLP readout** (`src/toy_jepa/readout.py`): freeze the model, extract `c_t` and `z_hat` for the same large train/val/test context set in every arm (e.g. 6,000 / 2,000 / 2,000 contexts), train on train features with validation early stopping, and report test normalized state MSE, position MAE, velocity MAE, and R². Features stay in RAM; no `.npz` files. The ridge and kNN probes below are secondary diagnostics of linear readability.
 
 Freeze the **online** encoder, extract context features `c_t` from `(x_{t-1}, x_t)` for the train/test splits, then:
 
@@ -164,7 +167,7 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 | Module | Question | Build | Deliverable |
 |---|---|---|---|
 | M0 | Can I load, split, and overfit? | Data + MLP warm-up | Data grid, splits, overfit curve, tests |
-| M1 | What does a pixel objective learn? | Baseline (pixel + state heads) | Pixel/state MSE + probe metrics |
+| M1 | What does a pixel objective learn? | Pixel-only baseline + common readout | Pixel/readout MSE + collapse metrics |
 | M2 | What happens with no asymmetry? | Barebones JEPA | Collapse dashboard |
 | M3 | Does stop-grad fix it? | JEPA + stop-grad | Rank/probe comparison |
 | M4 | Does a moving target stabilize it? | JEPA + EMA | EMA decay sweep |
@@ -181,17 +184,17 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 - Overfit 8 samples; gradient check; shape tests.
 - **Done when:** the MLP overfits, the data splits are disjoint, and the labels/positions look right.
 
-### M1 — Baseline (pixel + state heads)
+### M1 — Pixel-only baseline + common readout
 
 - Two-frame context `(x_{t-1}, x_t)`, target `x_{t+k}`, `k=4`.
-- Frame encoder + context fusion + predictor + pixel head + state head.
-- Joint loss: pixel MSE + weighted state MSE.
-- Compare against persistence (`x_t`); evaluate on a fixed val/test set.
-- Probes on `c_t`: digit identity, position, velocity; raw-pixel reference.
-- Report rank, variance, cosine; first column of the collapse dashboard.
-- **Done when:** pixel MSE beats persistence, state MAE is reported, probes run, and the dashboard has its first column.
+- Frame encoder + context fusion + predictor + pixel head. No state head and no state loss.
+- Train with pixel MSE and compare against persistence (`x_t`).
+- Freeze the model; extract `c_t` and `z_hat` for a large train/val/test context set in RAM.
+- Train the shared fixed-capacity readout (`128 -> 256 -> 8`, AdamW, validation early stopping) on each frozen feature set. Report test state MSE, position MAE, velocity MAE, and R² for both.
+- Report variance, cosine, effective rank, and target variance; write the collapse dashboard.
+- **Done when:** pixel MSE beats persistence, both readouts are reported, and the dashboard is written.
 
-`runs/m1_pixel/` is the historical pixel-only run from M1; the two-headed script writes to `runs/m1_baseline/`.
+New M1 runs write to `runs/m1_pixel/`. The old `runs/m1_baseline/` directory is the historical two-headed run and must not be overwritten.
 
 ### M2 — Barebones JEPA
 
@@ -253,7 +256,7 @@ If it collapses immediately and never recovers, try the opposite. Record what ha
 
 Core comparison (3 seeds):
 
-- Baseline (pixel + state heads)
+- Baseline (pixel only) + common post-hoc readout
 - Barebones JEPA
 - Stop-grad
 - EMA
@@ -273,7 +276,7 @@ Keep the encoder, predictor, batch size, and step count identical across arms. T
 
 Start with 2,000 train sequences, batch 128, and 5,000 steps; each run should be minutes on a GPU and tens of minutes on CPU. Final runs: 8,000 sequences, 20,000 steps, 3 seeds. Evaluate every 500 steps on a fixed 1,000-sample probe set; do the full test-set evaluation at the end.
 
-Log to `runs/<arm>_<seed>/`: `config.json`, `metrics.csv`, `checkpoint.npz`, and `plots/`. Keep the logging in the script, not in the pure training functions.
+Log to `runs/<arm>/`: `config.json`, `metrics.csv`, `probes.csv`, and the PNG plots. Keep the logging in the script, not in the pure training functions.
 
 ## JAX checklist
 
@@ -303,15 +306,17 @@ src/toy_jepa/
     mlp.py            # affine layers (pure)
     cnn.py            # conv blocks + CNN built from them (pure)
     norm.py           # group/layer norm (pure)
-    baseline.py       # pixel + state baseline model (pure)
+    baseline.py       # pixel-only baseline model (pure)
     jepa_base.py      # barebones JEPA model (pure)
-  metrics.py          # rank, variance, cosine, probes
+  experiment.py       # shared batches, state normalization, collapse metrics
+  readout.py          # frozen-feature MLP state readout
+  metrics.py          # rank, variance, cosine, probes, state readout metrics
   optim.py            # manual AdamW (pure)
   train.py            # generic pure train step + losses
-  viz.py              # plotting (impure)
+  viz.py              # plotting (impure), including the collapse dashboard
 scripts/
   m0_overfit.py       # M0 overfit check
-  m1_baseline.py      # M1 two-headed baseline
+  m1_pixel.py         # M1 pixel-only baseline + common readout
   m2_jepa.py          # M2 barebones JEPA
   visualize_data.py   # play a few samples (impure)
 tests/

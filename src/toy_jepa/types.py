@@ -68,12 +68,11 @@ class CNNParams(NamedTuple):
 
 
 class BaselineParams(NamedTuple):
-    """Parameters of the baseline with pixel and state heads."""
+    """Parameters of the pixel-only baseline."""
     encoder: CNNParams
     fusion: MLPParams
     predictor: MLPParams
     pixel_head: MLPParams
-    state_head: MLPParams
 
 
 class JEPABaseParams(NamedTuple):
