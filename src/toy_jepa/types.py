@@ -67,12 +67,13 @@ class CNNParams(NamedTuple):
     ln: NormParams
 
 
-class PixelParams(NamedTuple):
-    """Parameters of the pixel-future baseline."""
+class BaselineParams(NamedTuple):
+    """Parameters of the baseline with pixel and state heads."""
     encoder: CNNParams
     fusion: MLPParams
     predictor: MLPParams
     pixel_head: MLPParams
+    state_head: MLPParams
 
 
 # Optimizer state is generic over whatever concrete parameter record a model uses.

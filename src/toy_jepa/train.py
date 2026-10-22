@@ -8,10 +8,10 @@ from typing import TypeVar
 import jax
 import jax.numpy as jnp
 
+from .models.baseline import apply_baseline
 from .models.mlp import apply_mlp
-from .models.pixel import apply_pixel_model
 from .optim import adamw_update
-from .types import MLPParams, ParamsT, PixelParams, TrainState
+from .types import BaselineParams, MLPParams, ParamsT, TrainState
 
 BatchT = TypeVar("BatchT")
 
@@ -26,14 +26,19 @@ def mlp_mse_loss(
     return jnp.mean((y - y_hat) ** 2)
 
 
-def pixel_mse_loss(
-    params: PixelParams,
-    batch: tuple[jax.Array, jax.Array],
+def baseline_loss(
+    params: BaselineParams,
+    batch: tuple[jax.Array, jax.Array, jax.Array],
+    *,
+    state_weight: float = 1.0,
 ) -> jax.Array:
-    """Mean squared error of the predicted future frame."""
-    context, target = batch
-    pixels, _, _ = apply_pixel_model(params, context)
-    return jnp.mean((pixels - target) ** 2)
+    """Pixel MSE plus weighted state MSE for the two-headed baseline."""
+    context, target_pixels, target_state = batch
+    pixels, state, _, _ = apply_baseline(params, context)
+
+    pixel_loss = jnp.mean((pixels - target_pixels) ** 2)
+    state_loss = jnp.mean((state - target_state) ** 2)
+    return pixel_loss + state_weight * state_loss
 
 
 def train_step(

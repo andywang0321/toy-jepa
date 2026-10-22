@@ -22,28 +22,17 @@ from .norm import (
 
 
 def init_conv(
-    key: jax.Array,
-    in_channels: int,
-    out_channels: int,
-    kernel_size: int = 3,
+    key: jax.Array, in_channels: int, out_channels: int, kernel_size: int = 3
 ) -> AffineParams:
     """Initialize a ``(kernel, kernel, in, out)`` convolution."""
     initializer = jax.nn.initializers.kaiming_uniform()
     weight = initializer(
         key, (kernel_size, kernel_size, in_channels, out_channels), jnp.float32
     )
-    return AffineParams(
-        w=weight,
-        b=jnp.zeros(out_channels, dtype=jnp.float32),
-    )
+    return AffineParams(w=weight, b=jnp.zeros(out_channels, dtype=jnp.float32))
 
 
-def apply_conv(
-    params: AffineParams,
-    x: jax.Array,
-    *,
-    stride: int = 2,
-) -> jax.Array:
+def apply_conv(params: AffineParams, x: jax.Array, *, stride: int = 2) -> jax.Array:
     """Apply an NHWC convolution with ``SAME`` padding."""
     y = jax.lax.conv_general_dilated(
         x,
@@ -55,11 +44,7 @@ def apply_conv(
     return y + params.b
 
 
-def init_conv_block(
-    key: jax.Array,
-    in_channels: int,
-    out_channels: int,
-) -> ConvBlockParams:
+def init_conv_block(key: jax.Array, in_channels: int, out_channels: int) -> ConvBlockParams:
     """Initialize one ``conv -> group norm`` block."""
     return ConvBlockParams(
         conv=init_conv(key, in_channels, out_channels),
@@ -102,11 +87,7 @@ def init_cnn(
         current_channels = out_channels
 
     fc: MLPParams = init_mlp(keys[-1], [flatten_dim, embed_dim])
-    return CNNParams(
-        blocks=blocks,
-        fc=fc,
-        ln=init_layer_norm(embed_dim),
-    )
+    return CNNParams(blocks=blocks, fc=fc, ln=init_layer_norm(embed_dim))
 
 
 def apply_cnn(params: CNNParams, x: jax.Array) -> jax.Array:

@@ -23,8 +23,7 @@ The global-latent predictor here is the same object as JEPA-Policy's future toke
 
 - Moving MNIST, temporal latent prediction.
 - One CNN encoder, one MLP predictor.
-- Baseline A (required): pixel future predictor — same encoder/trunk, pixel output.
-- Baseline B (optional): supervised state predictor — same encoder, predict `(x, y, vx, vy)`.
+- Baseline (required): same encoder/trunk, pixel head plus supervised state head for `(x, y, vx, vy)`.
 - JEPA variants: barebones, stop-grad, EMA, EMA + SIGReg.
 - Probes: digit identity, position, velocity; collapse metrics.
 - 3-seed comparison and a short write-up.
@@ -81,7 +80,7 @@ The returned `MovingMNIST` has:
 | `velocity` | `(N, T, 2, 2)` | `float32` | `(vx, vy)` per digit, pixels/frame |
 | `split` | `(N,)` | `int8` | 0=train, 1=val, 2=test |
 
-Record positions even when the digits overlap; the renderer composites with max, and the labels stay clean. These labels are for the probes and Baseline B; they are **not** extra JEPA losses. The JEPA target is still the future frame's latent.
+Record positions even when the digits overlap; the renderer composites with max, and the labels stay clean. These labels are for the probes and the supervised state head; they are **not** extra JEPA losses. The JEPA target is still the future frame's latent.
 
 ## Models
 
@@ -97,13 +96,14 @@ Encode `x_{t-1}` and `x_t` with the shared frame encoder, concatenate the two 12
 
 2-layer MLP: `128 -> 256 -> 128`, LayerNorm + GELU. No dropout in v1.
 
-### Baseline A — pixel future predictor
+### Baseline — pixel and state heads
 
-Same frame encoder, fusion, and predictor trunk; a pixel head `128 -> 512 -> 4096` reshaped to `64×64`; MSE to `x_{t+k}`. It must model texture/background, not just the state. This is the generative contrast. Compare against persistence (`x_t`) and compare representation quality (probes/rank), not raw loss values.
+Same frame encoder, fusion, and predictor trunk; two output heads:
 
-### Baseline B (optional) — supervised state predictor
+- a pixel head `128 -> 512 -> 4096` reshaped to `64×64`, MSE to `x_{t+k}`;
+- a state head `128 -> 256 -> 8` for `(x, y, vx, vy)` of both digits at `x_{t+k}`.
 
-Same encoder; an 8-d head for `(x, y, vx, vy)` of both digits at `x_{t+k}` (or a 4-d head for one digit). Normalize state targets (z-score) for training and report probes in consistent units. This is an upper bound on how much state information the encoder can carry, not a JEPA method.
+Train jointly with `pixel_mse + state_weight * state_mse`. The pixel head is the generative contrast; the state head is Baseline B, an upper bound on how much state information the shared encoder can carry. Normalize state targets for training and report MAEs in pixels/pixels-per-frame. Compare against persistence (`x_t`) and compare representation quality (probes/rank), not raw loss values.
 
 ### JEPA variants
 
@@ -134,14 +134,15 @@ SIGReg is not guaranteed to help. In the supervised JEPA-Policy setting it hurt 
 
 At every evaluation:
 
-- `loss`: latent MSE (or pixel MSE for Baseline A).
+- `loss`: total baseline loss (pixel + weighted state), or latent MSE for JEPA.
 - `rank`: effective rank / participation ratio of centered features:
   `(Σ σ_i)² / Σ σ_i²`, with `σ_i` the singular values.
 - `var`: mean per-dimension variance.
 - `cos`: mean pairwise cosine similarity.
 - `digit_acc`: kNN accuracy for digit identity (k=5, cosine).
 - `pos_r2`, `vel_r2`: ridge regression R² for position and velocity.
-- `pixel_mse`: for Baseline A.
+- `pixel_mse`: pixel-head error for the baseline.
+- `state_mse`: state-head error, plus MAE in pixels and pixels/frame.
 
 The **collapse dashboard** is one figure with loss, rank, variance, and probe R²/accuracy on a shared x-axis. A lower loss with a lower rank/probe is the signature of collapse. Loss alone is not evidence of a good representation.
 
@@ -161,7 +162,7 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 | Module | Question | Build | Deliverable |
 |---|---|---|---|
 | M0 | Can I load, split, and overfit? | Data + MLP warm-up | Data grid, splits, overfit curve, tests |
-| M1 | What does a pixel objective learn? | Baseline A (pixel future predictor) | Pixel MSE + probe metrics |
+| M1 | What does a pixel objective learn? | Baseline (pixel + state heads) | Pixel/state MSE + probe metrics |
 | M2 | What happens with no asymmetry? | Barebones JEPA | Collapse dashboard |
 | M3 | Does stop-grad fix it? | JEPA + stop-grad | Rank/probe comparison |
 | M4 | Does a moving target stabilize it? | JEPA + EMA | EMA decay sweep |
@@ -178,14 +179,17 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 - Overfit 8 samples; gradient check; shape tests.
 - **Done when:** the MLP overfits, the data splits are disjoint, and the labels/positions look right.
 
-### M1 — Baseline A (pixel future predictor)
+### M1 — Baseline (pixel + state heads)
 
 - Two-frame context `(x_{t-1}, x_t)`, target `x_{t+k}`, `k=4`.
-- Frame encoder + context fusion + predictor + pixel head; pixel MSE.
+- Frame encoder + context fusion + predictor + pixel head + state head.
+- Joint loss: pixel MSE + weighted state MSE.
 - Compare against persistence (`x_t`); evaluate on a fixed val/test set.
 - Probes on `c_t`: digit identity, position, velocity; raw-pixel reference.
 - Report rank, variance, cosine; first column of the collapse dashboard.
-- **Done when:** pixel MSE beats persistence, probes run, and the dashboard has its first column.
+- **Done when:** pixel MSE beats persistence, state MAE is reported, probes run, and the dashboard has its first column.
+
+`runs/m1_pixel/` is the historical pixel-only run from M1; the two-headed script writes to `runs/m1_baseline/`.
 
 ### M2 — Barebones JEPA
 
@@ -234,7 +238,7 @@ If it collapses immediately and never recovers, try the opposite. Record what ha
 
 ## Questions the project should answer
 
-1. Does the pixel baseline learn better probes than JEPA? For which factors?
+1. Does the baseline learn better probes than JEPA? For which factors?
 2. What does barebones JEPA collapse to, and how does it show up in the metrics?
 3. Does stop-grad prevent collapse? Does EMA? Does SIGReg?
 4. Is a lower JEPA loss always a better representation? (No — show it.)
@@ -245,7 +249,7 @@ If it collapses immediately and never recovers, try the opposite. Record what ha
 
 Core comparison (3 seeds):
 
-- Pixel baseline
+- Baseline (pixel + state heads)
 - Barebones JEPA
 - Stop-grad
 - EMA
@@ -295,14 +299,14 @@ src/toy_jepa/
     mlp.py            # affine layers (pure)
     cnn.py            # conv blocks + CNN built from them (pure)
     norm.py           # group/layer norm (pure)
-    pixel.py          # pixel-future model (pure)
+    baseline.py       # pixel + state baseline model (pure)
   metrics.py          # rank, variance, cosine, probes
   optim.py            # manual AdamW (pure)
   train.py            # generic pure train step + losses
   viz.py              # plotting (impure)
 scripts/
   m0_overfit.py       # M0 overfit check
-  m1_pixel.py         # M1 pixel baseline
+  m1_baseline.py      # M1 two-headed baseline
   visualize_data.py   # play a few samples (impure)
 tests/
 ```
