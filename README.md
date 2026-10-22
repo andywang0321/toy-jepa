@@ -194,7 +194,7 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 - Report variance, cosine, effective rank, and target variance; write the collapse dashboard.
 - **Done when:** pixel MSE beats persistence, both readouts are reported, and the dashboard is written.
 
-New M1 runs write to `runs/m1_pixel/`. The old `runs/m1_baseline/` directory is the historical two-headed run and must not be overwritten.
+New M1 runs write to `runs/m1_pixel/`. Historical artifacts live in `runs/m1_baseline/` (old two-headed baseline), `runs/m1_pixel_legacy/` (pixel-only before the readout), and `runs/m2_jepa_legacy/` (barebones JEPA before the readout); do not overwrite those directories.
 
 ### M2 — Barebones JEPA
 
