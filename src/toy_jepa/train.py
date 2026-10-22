@@ -28,19 +28,18 @@ def mlp_mse_loss(
     return jnp.mean((y - y_hat) ** 2)
 
 
-def baseline_loss(
+def baseline_pixel_loss(
     params: BaselineParams,
-    batch: tuple[jax.Array, jax.Array, jax.Array],
-    *,
-    state_weight: float = 1.0,
+    batch: tuple[jax.Array, ...],
 ) -> jax.Array:
-    """Pixel MSE plus weighted state MSE for the two-headed baseline."""
-    context, target_pixels, target_state = batch
-    pixels, state, _, _ = apply_baseline(params, context)
+    """Pixel MSE for the pixel-only baseline.
 
-    pixel_loss = jnp.mean((pixels - target_pixels) ** 2)
-    state_loss = jnp.mean((state - target_state) ** 2)
-    return pixel_loss + state_weight * state_loss
+    ``batch`` is ``(context, target_pixels, ...)``; extra entries such as the
+    target state used by the post-hoc readout are ignored.
+    """
+    context, target_pixels = batch[0], batch[1]
+    pixels, _, _ = apply_baseline(params, context)
+    return jnp.mean((pixels - target_pixels) ** 2)
 
 
 def jepa_base_loss(

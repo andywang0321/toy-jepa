@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .constants import POSITION_SCALE, VELOCITY_SCALE
 from .types import Float32Array, Int8Array
 
 
@@ -38,6 +39,36 @@ def mean_pairwise_cosine(features: Float32Array) -> float:
     similarities = x @ x.T
     mask = ~np.eye(len(x), dtype=bool)
     return float(similarities[mask].mean())
+
+
+def state_readout_metrics(
+    predictions: Float32Array,
+    targets: Float32Array,
+    *,
+    position_scale: float = POSITION_SCALE,
+    velocity_scale: float = VELOCITY_SCALE,
+) -> dict[str, float]:
+    """Metrics for an 8-d state readout.
+
+    Targets use the shared normalization (position / 36, velocity / 3), so
+    ``state_mse`` is in normalized units while the MAEs are converted back to
+    pixels and pixels/frame. The layout is four positions followed by four
+    velocities: ``(x, y)`` for each of the two digits.
+    """
+    prediction = _as_float64(predictions)
+    target = _as_float64(targets)
+    error = prediction - target
+
+    residual = np.sum(error**2, axis=0)
+    total = np.sum((target - target.mean(axis=0, keepdims=True)) ** 2, axis=0)
+    r2 = 1.0 - residual / np.maximum(total, 1e-12)
+
+    return {
+        "state_mse": float(np.mean(error**2)),
+        "position_mae": float(np.mean(np.abs(error[:, :4])) * position_scale),
+        "velocity_mae": float(np.mean(np.abs(error[:, 4:])) * velocity_scale),
+        "r2": float(np.mean(r2)),
+    }
 
 
 def ridge_r2(

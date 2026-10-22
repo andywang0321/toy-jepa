@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from toy_jepa.metrics import effective_rank, knn_accuracy, ridge_r2
+from toy_jepa.constants import POSITION_SCALE, VELOCITY_SCALE
+from toy_jepa.metrics import (
+    effective_rank,
+    knn_accuracy,
+    ridge_r2,
+    state_readout_metrics,
+)
 
 
 def test_ridge_r2_recovers_a_linear_map() -> None:
@@ -37,3 +44,33 @@ def test_effective_rank_is_bounded() -> None:
 
     rank = effective_rank(features)
     assert 1.0 <= rank <= 16.0
+
+
+def test_state_readout_metrics_perfect_prediction() -> None:
+    rng = np.random.default_rng(0)
+    targets = rng.normal(size=(20, 8)).astype(np.float32)
+
+    metrics = state_readout_metrics(targets, targets)
+
+    assert metrics["state_mse"] == 0.0
+    assert metrics["position_mae"] == 0.0
+    assert metrics["velocity_mae"] == 0.0
+    assert metrics["r2"] == pytest.approx(1.0)
+
+
+def test_state_readout_metrics_use_pixel_units() -> None:
+    rng = np.random.default_rng(0)
+    targets = rng.normal(size=(20, 8)).astype(np.float32)
+    predictions = targets.copy()
+    predictions[:, :4] += 1.0 / POSITION_SCALE
+    predictions[:, 4:] += 1.0 / VELOCITY_SCALE
+
+    metrics = state_readout_metrics(predictions, targets)
+
+    expected_mse = np.mean(
+        [(1.0 / POSITION_SCALE) ** 2] * 4 + [(1.0 / VELOCITY_SCALE) ** 2] * 4
+    )
+    assert metrics["state_mse"] == pytest.approx(expected_mse, rel=1e-5)
+    assert metrics["position_mae"] == pytest.approx(1.0)
+    assert metrics["velocity_mae"] == pytest.approx(1.0)
+    assert metrics["r2"] < 1.0
