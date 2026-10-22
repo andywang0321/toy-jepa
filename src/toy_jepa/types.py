@@ -76,6 +76,13 @@ class BaselineParams(NamedTuple):
     state_head: MLPParams
 
 
+class JEPABaseParams(NamedTuple):
+    """Parameters of the barebones JEPA model."""
+    encoder: CNNParams
+    fusion: MLPParams
+    predictor: MLPParams
+
+
 # Optimizer state is generic over whatever concrete parameter record a model uses.
 ParamsT = TypeVar("ParamsT")
 

@@ -193,10 +193,12 @@ The targets are per digit: flatten `position` and `velocity` from `(2, 2)` to 4-
 
 ### M2 — Barebones JEPA
 
+- `models/jepa_base.py` + `JEPABaseParams`: frame encoder, fusion, predictor.
 - Replace the pixel target with the encoder's latent of `x_{t+k}`.
-- Shared encoder, no stop-grad.
-- Train and measure collapse.
-- **Done when:** you can show the loss/rank/probe curves and say whether collapse occurred.
+- Shared encoder, no stop-grad; `jepa_base_loss` intentionally lets gradients flow through the target.
+- `scripts/m2_jepa.py` trains and writes `runs/m2_jepa/`.
+- Dashboard (`collapse.png`): loss + latent persistence, effective rank, variance, cosine, position/velocity R², digit accuracy.
+- **Done when:** the loss/rank/probe curves are logged and you can say whether collapse occurred.
 
 ### M3 — Stop-grad
 
@@ -300,6 +302,7 @@ src/toy_jepa/
     cnn.py            # conv blocks + CNN built from them (pure)
     norm.py           # group/layer norm (pure)
     baseline.py       # pixel + state baseline model (pure)
+    jepa_base.py      # barebones JEPA model (pure)
   metrics.py          # rank, variance, cosine, probes
   optim.py            # manual AdamW (pure)
   train.py            # generic pure train step + losses
@@ -307,6 +310,7 @@ src/toy_jepa/
 scripts/
   m0_overfit.py       # M0 overfit check
   m1_baseline.py      # M1 two-headed baseline
+  m2_jepa.py          # M2 barebones JEPA
   visualize_data.py   # play a few samples (impure)
 tests/
 ```

@@ -9,9 +9,11 @@ import jax
 import jax.numpy as jnp
 
 from .models.baseline import apply_baseline
+from .models.cnn import apply_cnn
+from .models.jepa_base import apply_jepa_base
 from .models.mlp import apply_mlp
 from .optim import adamw_update
-from .types import BaselineParams, MLPParams, ParamsT, TrainState
+from .types import BaselineParams, JEPABaseParams, MLPParams, ParamsT, TrainState
 
 BatchT = TypeVar("BatchT")
 
@@ -39,6 +41,17 @@ def baseline_loss(
     pixel_loss = jnp.mean((pixels - target_pixels) ** 2)
     state_loss = jnp.mean((state - target_state) ** 2)
     return pixel_loss + state_weight * state_loss
+
+
+def jepa_base_loss(
+    params: JEPABaseParams,
+    batch: tuple[jax.Array, jax.Array],
+) -> jax.Array:
+    """Barebones JEPA: MSE between predicted and shared-encoder targets."""
+    context, target_frame = batch
+    z_hat, _ = apply_jepa_base(params, context)
+    z_target = apply_cnn(params.encoder, target_frame[..., None])
+    return jnp.mean((z_hat - z_target) ** 2)
 
 
 def train_step(
