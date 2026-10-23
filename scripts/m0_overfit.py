@@ -22,9 +22,9 @@ import matplotlib.pyplot as plt
 
 from toy_jepa.constants import CANVAS_SIZE, DIGIT_SIZE, SEED, SPEED_RANGE
 from toy_jepa.data import generate_dataset
-from toy_jepa.models.mlp import init_mlp
+from toy_jepa.models.mlp import init_mlp, mlp_mse_loss
 from toy_jepa.optim import adamw_init
-from toy_jepa.train import mlp_mse_loss, train_step
+from toy_jepa.train import train_step
 from toy_jepa.types import MLPParams, MovingMNIST, TrainState
 
 NUM_SAMPLES = 8

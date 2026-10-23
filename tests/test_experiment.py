@@ -19,6 +19,7 @@ from toy_jepa.experiment import (
     readout_split,
     sample_batch,
     sample_indices,
+    summarize_readouts,
 )
 from toy_jepa.metrics import (
     effective_rank,
@@ -118,3 +119,28 @@ def test_collapse_metrics_match_metric_functions() -> None:
     assert metrics["mean_pairwise_cosine"] == pytest.approx(
         mean_pairwise_cosine(features)
     )
+
+
+def test_summarize_readouts_prefixes_each_feature_set() -> None:
+    readouts = {
+        "c_t": (
+            {"state_mse": 1.0, "position_mae": 2.0, "velocity_mae": 3.0, "r2": 0.5},
+            {"best_val_mse": 4.0, "best_step": 5, "steps_run": 6},
+            {
+                "effective_rank": 7.0,
+                "feature_variance": 8.0,
+                "mean_pairwise_cosine": 9.0,
+            },
+        )
+    }
+
+    summary = summarize_readouts(readouts)
+
+    assert summary["c_t_state_mse"] == 1.0
+    assert summary["c_t_r2"] == 0.5
+    assert summary["c_t_rank"] == 7.0
+    assert summary["c_t_variance"] == 8.0
+    assert summary["c_t_cosine"] == 9.0
+    assert summary["c_t_readout_best_val_mse"] == 4.0
+    assert summary["c_t_readout_best_step"] == 5
+    assert summary["c_t_readout_steps_run"] == 6

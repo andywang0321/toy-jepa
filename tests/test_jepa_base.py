@@ -5,20 +5,30 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from toy_jepa.models.jepa_base import apply_jepa_base, init_jepa_base
+from toy_jepa.models.jepa_base import (
+    JEPABaseParams,
+    apply_jepa_base,
+    init_jepa_base,
+    jepa_base_loss,
+)
 from toy_jepa.optim import adamw_init
-from toy_jepa.train import jepa_base_loss, train_step
+from toy_jepa.train import train_step
 from toy_jepa.types import TrainState
 
 
-def test_jepa_base_output_shapes() -> None:
-    params = init_jepa_base(
-        jax.random.key(0), embed_dim=64, hidden_dim=64
-    )
+def _batch() -> tuple[jax.Array, jax.Array]:
     context = jnp.zeros((2, 2, 64, 64), dtype=jnp.float32)
+    target_frame = jnp.zeros((2, 64, 64), dtype=jnp.float32)
+    return context, target_frame
+
+
+def test_jepa_base_output_shapes() -> None:
+    params = init_jepa_base(jax.random.key(0), embed_dim=64, hidden_dim=64)
+    context, _ = _batch()
 
     z_hat, c_t = apply_jepa_base(params, context)
 
+    assert isinstance(params, JEPABaseParams)
     assert z_hat.shape == (2, 64)
     assert c_t.shape == (2, 64)
     assert jnp.all(jnp.isfinite(z_hat))
@@ -26,38 +36,22 @@ def test_jepa_base_output_shapes() -> None:
 
 
 def test_jepa_base_loss_has_finite_gradients() -> None:
-    params = init_jepa_base(
-        jax.random.key(0), embed_dim=64, hidden_dim=64
-    )
-    context = jnp.zeros((2, 2, 64, 64), dtype=jnp.float32)
-    target_frame = jnp.zeros((2, 64, 64), dtype=jnp.float32)
+    params = init_jepa_base(jax.random.key(0), embed_dim=64, hidden_dim=64)
+    batch = _batch()
 
-    def loss(p):
-        return jepa_base_loss(p, (context, target_frame))
+    grads = jax.grad(lambda p: jepa_base_loss(p, batch))(params)
 
-    grads = jax.grad(loss)(params)
     assert jax.tree.structure(grads) == jax.tree.structure(params)
     for grad in jax.tree.leaves(grads):
         assert jnp.all(jnp.isfinite(grad))
 
 
 def test_jepa_base_train_step_updates_state() -> None:
-    params = init_jepa_base(
-        jax.random.key(0), embed_dim=64, hidden_dim=64
-    )
+    params = init_jepa_base(jax.random.key(0), embed_dim=64, hidden_dim=64)
     state = TrainState(params=params, opt_state=adamw_init(params))
-    context = jnp.zeros((2, 2, 64, 64), dtype=jnp.float32)
-    target_frame = jnp.zeros((2, 64, 64), dtype=jnp.float32)
-
-    def loss_fn(p, batch):
-        return jepa_base_loss(p, batch)
 
     next_state, loss = train_step(
-        state,
-        (context, target_frame),
-        loss_fn,
-        lr=1e-3,
-        weight_decay=0.0,
+        state, _batch(), jepa_base_loss, lr=1e-3, weight_decay=0.0
     )
 
     assert int(next_state.opt_state.t) == 1

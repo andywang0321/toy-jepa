@@ -5,10 +5,9 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
+from toy_jepa.models.mlp import mlp_mse_loss
 from toy_jepa.readout import apply_readout, init_readout, train_readout
-from toy_jepa.train import mlp_mse_loss
 
 
 def _readout_data() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -70,11 +69,7 @@ def test_readout_early_stops() -> None:
     assert metrics["best_step"] <= metrics["steps_run"]
     assert metrics["num_train"] == 256
     assert metrics["num_val"] == 128
-    assert metrics["state_mse"] == pytest.approx(
-        metrics["best_val_mse"], rel=1e-5
-    )
-    for key in ("position_mae", "velocity_mae", "r2"):
-        assert np.isfinite(metrics[key])
+    assert np.isfinite(metrics["best_val_mse"])
 
 
 def test_readout_learns_a_linear_state_map() -> None:
@@ -101,7 +96,6 @@ def test_readout_learns_a_linear_state_map() -> None:
     )
 
     assert metrics["best_val_mse"] < 0.2 * baseline_mse
-    assert metrics["r2"] > 0.8
     predictions = jax.jit(apply_readout)(params, jnp.asarray(val_x))
     assert predictions.shape == (256, 8)
     assert jnp.all(jnp.isfinite(predictions))
