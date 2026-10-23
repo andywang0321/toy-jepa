@@ -26,9 +26,7 @@ def _context() -> jax.Array:
 ParamsT = TypeVar("ParamsT")
 
 
-def _assert_finite_grads(
-    loss: Callable[[ParamsT], jax.Array], params: ParamsT
-) -> None:
+def _assert_finite_grads(loss: Callable[[ParamsT], jax.Array], params: ParamsT) -> None:
     grads = jax.grad(loss)(params)
     for grad in jax.tree.leaves(grads):
         assert jnp.all(jnp.isfinite(grad))
@@ -68,9 +66,7 @@ def test_ema_and_sigreg_have_finite_gradients() -> None:
         jax.random.key(0), embed_dim=32, hidden_dim=32
     )
 
-    _assert_finite_grads(
-        lambda p: jepa_ema.jepa_ema_loss(p, p.encoder, batch), ema
-    )
+    _assert_finite_grads(lambda p: jepa_ema.jepa_ema_loss(p, p.encoder, batch), ema)
     _assert_finite_grads(
         lambda p: jepa_sigreg.jepa_sigreg_loss(
             p, p.encoder, batch, key=jax.random.key(1), weight=0.1

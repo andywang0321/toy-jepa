@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from toy_jepa.models.mlp import mlp_mse_loss
-from toy_jepa.readout import apply_readout, init_readout, train_readout
+from toy_jepa.evaluation.readout import apply_readout, init_readout, train_readout
 
 
 def _readout_data() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -21,9 +21,7 @@ def _readout_data() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 
 def test_readout_shapes() -> None:
-    params = init_readout(
-        jax.random.key(0), embed_dim=16, hidden_dim=32, state_dim=8
-    )
+    params = init_readout(jax.random.key(0), embed_dim=16, hidden_dim=32, state_dim=8)
     features = jnp.ones((5, 16), dtype=jnp.float32)
 
     predictions = apply_readout(params, features)
@@ -36,9 +34,7 @@ def test_readout_shapes() -> None:
 
 
 def test_readout_has_finite_gradients() -> None:
-    params = init_readout(
-        jax.random.key(0), embed_dim=16, hidden_dim=32, state_dim=8
-    )
+    params = init_readout(jax.random.key(0), embed_dim=16, hidden_dim=32, state_dim=8)
     features = jnp.ones((5, 16), dtype=jnp.float32)
     states = jnp.zeros((5, 8), dtype=jnp.float32)
 

@@ -7,8 +7,8 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 
-from ..sigreg import sigreg_loss
-from ..types import CNNParams, MLPParams
+from .sigreg import sigreg_loss
+from ..core.types import CNNParams, MLPParams
 from .cnn import apply_cnn, init_cnn
 from .mlp import apply_mlp, init_mlp
 
@@ -59,7 +59,5 @@ def jepa_sigreg_loss(
     context, target_frame = batch
     z_hat, c_t = apply_jepa_sigreg(params, context)
     z_target = apply_cnn(target_encoder, target_frame[..., None])
-    latent_loss = jnp.mean(
-        (z_hat - jax.lax.stop_gradient(z_target)) ** 2
-    )
+    latent_loss = jnp.mean((z_hat - jax.lax.stop_gradient(z_target)) ** 2)
     return latent_loss + weight * sigreg_loss(c_t, key)

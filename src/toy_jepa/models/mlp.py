@@ -5,7 +5,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from ..types import AffineParams, MLPParams
+from ..core.types import AffineParams, MLPParams
 
 
 def init_mlp(key: jax.Array, sizes: list[int]) -> MLPParams:

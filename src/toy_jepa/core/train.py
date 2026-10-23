@@ -7,7 +7,7 @@ from typing import TypeVar
 
 import jax
 
-from .ema import ema_update
+from ..models.ema import ema_update
 from .optim import adamw_update
 from .types import CNNParams, EMAState, ParamsT, TrainState
 
@@ -51,9 +51,7 @@ def ema_train_step(
         lr=lr,
         weight_decay=weight_decay,
     )
-    target_encoder = ema_update(
-        state.target_encoder, get_encoder(params), decay
-    )
+    target_encoder = ema_update(state.target_encoder, get_encoder(params), decay)
     return (
         EMAState(
             train_state=TrainState(params=params, opt_state=opt_state),

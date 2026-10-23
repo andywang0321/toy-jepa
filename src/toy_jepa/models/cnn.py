@@ -10,7 +10,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from ..types import AffineParams, CNNParams, ConvBlockParams, MLPParams
+from ..core.types import AffineParams, CNNParams, ConvBlockParams, MLPParams
 from .mlp import apply_mlp, init_mlp
 from .norm import (
     GROUPS,
@@ -44,7 +44,9 @@ def apply_conv(params: AffineParams, x: jax.Array, *, stride: int = 2) -> jax.Ar
     return y + params.b
 
 
-def init_conv_block(key: jax.Array, in_channels: int, out_channels: int) -> ConvBlockParams:
+def init_conv_block(
+    key: jax.Array, in_channels: int, out_channels: int
+) -> ConvBlockParams:
     """Initialize one ``conv -> group norm`` block."""
     return ConvBlockParams(
         conv=init_conv(key, in_channels, out_channels),

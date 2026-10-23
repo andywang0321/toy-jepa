@@ -5,7 +5,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from toy_jepa.optim import adamw_init, adamw_update
+from toy_jepa.core.optim import adamw_init, adamw_update
 
 
 def test_adamw_init_matches_param_structure() -> None:
@@ -57,9 +57,7 @@ def test_adamw_decoupled_weight_decay() -> None:
     grads = {"w": jnp.zeros_like(params["w"])}
     state = adamw_init(params)
 
-    params_next, _ = adamw_update(
-        params, grads, state, lr=0.1, weight_decay=0.1
-    )
+    params_next, _ = adamw_update(params, grads, state, lr=0.1, weight_decay=0.1)
 
     assert jnp.allclose(
         params_next["w"], jnp.array([2.0 * (1.0 - 0.1 * 0.1)]), atol=1e-6

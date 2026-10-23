@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 
 from toy_jepa.constants import SEED
-from toy_jepa.data import generate_dataset, pair_indices, state_at
-from toy_jepa.experiment import (
+from toy_jepa.data.dataset import generate_dataset, pair_indices, state_at
+from toy_jepa.evaluation.protocol import (
     K,
     collapse_metrics,
     fixed_batch,
@@ -21,12 +21,12 @@ from toy_jepa.experiment import (
     sample_indices,
     summarize_readouts,
 )
-from toy_jepa.metrics import (
+from toy_jepa.evaluation.metrics import (
     effective_rank,
     feature_variance,
     mean_pairwise_cosine,
 )
-from toy_jepa.types import MovingMNIST
+from toy_jepa.core.types import MovingMNIST
 
 
 @lru_cache(maxsize=1)
@@ -85,9 +85,7 @@ def test_sampling_and_fixed_batches() -> None:
     fixed = fixed_batch(dataset, sequence, time, num_pairs=5, k=K)
     manual = make_batch(dataset, sequence[:5], time[:5], k=K)
     for fixed_array, manual_array in zip(fixed, manual):
-        np.testing.assert_allclose(
-            np.asarray(fixed_array), np.asarray(manual_array)
-        )
+        np.testing.assert_allclose(np.asarray(fixed_array), np.asarray(manual_array))
 
 
 def test_readout_split_is_deterministic() -> None:
@@ -113,9 +111,7 @@ def test_collapse_metrics_match_metric_functions() -> None:
     metrics = collapse_metrics(features)
 
     assert metrics["effective_rank"] == pytest.approx(effective_rank(features))
-    assert metrics["feature_variance"] == pytest.approx(
-        feature_variance(features)
-    )
+    assert metrics["feature_variance"] == pytest.approx(feature_variance(features))
     assert metrics["mean_pairwise_cosine"] == pytest.approx(
         mean_pairwise_cosine(features)
     )

@@ -11,9 +11,9 @@ from toy_jepa.models.baseline import (
     baseline_pixel_loss,
     init_baseline,
 )
-from toy_jepa.optim import adamw_init
-from toy_jepa.train import train_step
-from toy_jepa.types import TrainState
+from toy_jepa.core.optim import adamw_init
+from toy_jepa.core.train import train_step
+from toy_jepa.core.types import TrainState
 
 
 def _batch() -> tuple[jax.Array, jax.Array]:

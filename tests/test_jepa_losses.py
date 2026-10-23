@@ -17,18 +17,14 @@ from toy_jepa.models.jepa_stopgrad import (
     init_jepa_stopgrad,
     jepa_stopgrad_loss,
 )
-from toy_jepa.optim import adamw_init
-from toy_jepa.train import ema_train_step
-from toy_jepa.types import EMAState, TrainState
+from toy_jepa.core.optim import adamw_init
+from toy_jepa.core.train import ema_train_step
+from toy_jepa.core.types import EMAState, TrainState
 
 
 def _batch() -> tuple[jax.Array, jax.Array]:
-    context = jax.random.uniform(
-        jax.random.key(0), (2, 2, 64, 64), dtype=jnp.float32
-    )
-    target_frame = jax.random.uniform(
-        jax.random.key(1), (2, 64, 64), dtype=jnp.float32
-    )
+    context = jax.random.uniform(jax.random.key(0), (2, 2, 64, 64), dtype=jnp.float32)
+    target_frame = jax.random.uniform(jax.random.key(1), (2, 64, 64), dtype=jnp.float32)
     return context, target_frame
 
 
@@ -84,9 +80,7 @@ def test_sigreg_weight_zero_keeps_the_latent_loss() -> None:
 def test_ema_train_step_increments_optimizer_step() -> None:
     params = init_jepa_ema(jax.random.key(0), embed_dim=32, hidden_dim=32)
     state = EMAState(
-        train_state=TrainState(
-            params=params, opt_state=adamw_init(params)
-        ),
+        train_state=TrainState(params=params, opt_state=adamw_init(params)),
         target_encoder=params.encoder,
     )
 

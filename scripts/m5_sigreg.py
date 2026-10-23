@@ -10,17 +10,20 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from toy_jepa import constants, experiment, readout, types
-from toy_jepa.data import generate_dataset, pair_indices
-from toy_jepa.metrics import feature_variance
+from toy_jepa import constants
+from toy_jepa.core import types
+from toy_jepa.evaluation import protocol as experiment, readout
+from toy_jepa.data.dataset import generate_dataset, pair_indices
+from toy_jepa.evaluation.metrics import feature_variance
 from toy_jepa.models import cnn, jepa_sigreg
-from toy_jepa.optim import adamw_init
-from toy_jepa.train import ema_train_step
+from toy_jepa.core.optim import adamw_init
+from toy_jepa.core.train import ema_train_step
 from _artifacts import write_run_artifacts
 
 RUN_DIR = Path(__file__).resolve().parents[1] / "runs" / "m5_sigreg"
 TITLE = "M5 EMA + SIGReg JEPA + common state readout"
 FEATURE_BATCH_SIZE = 256
+SIGREG_WEIGHT = 0.1
 apply_jepa_sigreg_jit = jax.jit(jepa_sigreg.apply_jepa_sigreg)
 apply_cnn_jit = jax.jit(cnn.apply_cnn)
 
@@ -39,7 +42,7 @@ class Config(NamedTuple):
     embed_dim: int = 128
     hidden_dim: int = 256
     ema_decay: float = 0.99
-    sigreg_weight: float = 0.1
+    sigreg_weight: float = SIGREG_WEIGHT
     run_dir: Path = RUN_DIR
 
 
@@ -90,7 +93,9 @@ def evaluate(
     _, c_t = apply_jepa_sigreg_jit(params, probe_context)
     collapse = experiment.collapse_metrics(np.asarray(c_t))
     return experiment.EvalRow(
-        step=step, train_loss=train_loss, val_loss=val_loss,
+        step=step,
+        train_loss=train_loss,
+        val_loss=val_loss,
         persistence=persistence,
         variance=collapse["feature_variance"],
         cosine=collapse["mean_pairwise_cosine"],
@@ -107,9 +112,7 @@ def train(
     val_target: jax.Array,
     probe_context: jax.Array,
     key: jax.Array,
-) -> tuple[
-    jepa_sigreg.JEPASigRegParams, types.CNNParams, list[experiment.EvalRow]
-]:
+) -> tuple[jepa_sigreg.JEPASigRegParams, types.CNNParams, list[experiment.EvalRow]]:
     """Train the model and log shared evaluation rows."""
     params = jepa_sigreg.init_jepa_sigreg(
         key, embed_dim=config.embed_dim, hidden_dim=config.hidden_dim
@@ -120,30 +123,43 @@ def train(
     )
     rng = np.random.default_rng(constants.SEED + 1)
     loss_fn = partial(
-        jepa_sigreg.jepa_sigreg_loss, key=jax.random.key(constants.SEED + 5),
+        jepa_sigreg.jepa_sigreg_loss,
+        key=jax.random.key(constants.SEED + 5),
         weight=config.sigreg_weight,
     )
 
     @jax.jit
     def step(state: types.EMAState[jepa_sigreg.JEPASigRegParams], batch):
         return ema_train_step(
-            state, batch, loss_fn, lambda p: p.encoder,
-            lr=config.learning_rate, weight_decay=config.weight_decay,
+            state,
+            batch,
+            loss_fn,
+            lambda p: p.encoder,
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
             decay=config.ema_decay,
         )
 
     history: list[experiment.EvalRow] = []
     for i in range(config.num_steps):
         batch = experiment.sample_batch(
-            rng, dataset, train_sequence, train_time,
-            batch_size=config.batch_size, k=config.k,
+            rng,
+            dataset,
+            train_sequence,
+            train_time,
+            batch_size=config.batch_size,
+            k=config.k,
         )
         state, loss = step(state, (batch[0], batch[1]))
         if i % config.eval_every == 0 or i == config.num_steps - 1:
             row = evaluate(
-                state.train_state.params, state.target_encoder,
-                val_context, val_target, probe_context,
-                step=i, train_loss=float(loss),
+                state.train_state.params,
+                state.target_encoder,
+                val_context,
+                val_target,
+                probe_context,
+                step=i,
+                train_loss=float(loss),
             )
             history.append(row)
             print(
@@ -170,15 +186,21 @@ def run(config: Config) -> None:
         dataset, val_sequence, val_time, num_pairs=config.probe_pairs, k=config.k
     )
     print(f"frames: {dataset.frames.shape}")
-    print(f"pairs: train={len(train_sequence):,} val={len(val_sequence):,} "
-          f"test={len(test_sequence):,}")
-
-    model_key, c_key, z_key = jax.random.split(
-        jax.random.key(constants.SEED), 3
+    print(
+        f"pairs: train={len(train_sequence):,} val={len(val_sequence):,} "
+        f"test={len(test_sequence):,}"
     )
+
+    model_key, c_key, z_key = jax.random.split(jax.random.key(constants.SEED), 3)
     params, target_encoder, history = train(
-        config, dataset, train_sequence, train_time, val_context, val_target,
-        probe_context, model_key,
+        config,
+        dataset,
+        train_sequence,
+        train_time,
+        val_context,
+        val_target,
+        probe_context,
+        model_key,
     )
     test_loss, test_persistence = loss_and_persistence(
         params, target_encoder, test_context, test_target
@@ -191,19 +213,33 @@ def run(config: Config) -> None:
         experiment.readout_split(dataset, readout_rng, split, n, k=config.k)
         for split, n in enumerate(config.readout_pairs)
     ]
-    (train_context, train_states), (val_context, val_states), (
-        test_context, test_states
+    (
+        (train_context, train_states),
+        (val_context, val_states),
+        (test_context, test_states),
     ) = readout_arrays
     train_c, train_z = extract_features(params, train_context)
     val_c, val_z = extract_features(params, val_context)
     test_c, test_z = extract_features(params, test_context)
 
     c_test, c_val = readout.fit_readout(
-        c_key, train_c, train_states, val_c, val_states, test_c, test_states,
+        c_key,
+        train_c,
+        train_states,
+        val_c,
+        val_states,
+        test_c,
+        test_states,
         seed=constants.SEED + 3,
     )
     z_test, z_val = readout.fit_readout(
-        z_key, train_z, train_states, val_z, val_states, test_z, test_states,
+        z_key,
+        train_z,
+        train_states,
+        val_z,
+        val_states,
+        test_z,
+        test_states,
         seed=constants.SEED + 4,
     )
     c_collapse = experiment.collapse_metrics(test_c)
@@ -218,10 +254,14 @@ def run(config: Config) -> None:
         "num_steps": config.num_steps,
         "k": config.k,
     }
-    metrics.update(experiment.summarize_readouts({
-        "c_t": (c_test, c_val, c_collapse),
-        "z_hat": (z_test, z_val, z_collapse),
-    }))
+    metrics.update(
+        experiment.summarize_readouts(
+            {
+                "c_t": (c_test, c_val, c_collapse),
+                "z_hat": (z_test, z_val, z_collapse),
+            }
+        )
+    )
     write_run_artifacts(
         config, TITLE, history, metrics, {"c_t": c_test, "z_hat": z_test}
     )

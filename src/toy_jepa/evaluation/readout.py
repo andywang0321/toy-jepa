@@ -6,12 +6,12 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from . import constants
+from .. import constants
 from .metrics import state_readout_metrics
-from .models.mlp import apply_mlp, init_mlp, mlp_mse_loss
-from .optim import adamw_init
-from .train import train_step
-from .types import ArrayLike, MLPParams, TrainState
+from ..models.mlp import apply_mlp, init_mlp, mlp_mse_loss
+from ..core.optim import adamw_init
+from ..core.train import train_step
+from ..core.types import ArrayLike, MLPParams, TrainState
 
 
 def init_readout(
@@ -71,9 +71,7 @@ def train_readout(
         state: TrainState[MLPParams],
         batch: tuple[jax.Array, jax.Array],
     ) -> tuple[TrainState[MLPParams], jax.Array]:
-        return train_step(
-            state, batch, mlp_mse_loss, lr=lr, weight_decay=weight_decay
-        )
+        return train_step(state, batch, mlp_mse_loss, lr=lr, weight_decay=weight_decay)
 
     @jax.jit
     def validation_loss(

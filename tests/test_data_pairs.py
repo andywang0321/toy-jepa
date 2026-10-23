@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from toy_jepa.constants import SEED
-from toy_jepa.data import (
+from toy_jepa.data.dataset import (
     generate_dataset,
     make_context_target,
     pair_indices,

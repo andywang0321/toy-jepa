@@ -21,11 +21,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from toy_jepa.constants import CANVAS_SIZE, DIGIT_SIZE, SEED, SPEED_RANGE
-from toy_jepa.data import generate_dataset
+from toy_jepa.data.dataset import generate_dataset
 from toy_jepa.models.mlp import init_mlp, mlp_mse_loss
-from toy_jepa.optim import adamw_init
-from toy_jepa.train import train_step
-from toy_jepa.types import MLPParams, MovingMNIST, TrainState
+from toy_jepa.core.optim import adamw_init
+from toy_jepa.core.train import train_step
+from toy_jepa.core.types import MLPParams, MovingMNIST, TrainState
 
 NUM_SAMPLES = 8
 NUM_STEPS = 1_000
@@ -59,7 +59,9 @@ def make_batch(dataset: MovingMNIST, num_samples: int) -> tuple[jax.Array, jax.A
     )
 
 
-def init_state(key: jax.Array, input_dim: int, output_dim: int) -> TrainState[MLPParams]:
+def init_state(
+    key: jax.Array, input_dim: int, output_dim: int
+) -> TrainState[MLPParams]:
     """Initialize the MLP and its AdamW moments."""
     params: MLPParams = init_mlp(key, [input_dim, HIDDEN_DIM, output_dim])
     return TrainState(params=params, opt_state=adamw_init(params))

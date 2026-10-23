@@ -13,8 +13,8 @@ from typing import Any
 
 import numpy as np
 
-from .constants import MNIST_DIR
-from .types import UInt8Array
+from ..constants import MNIST_DIR
+from ..core.types import UInt8Array
 
 
 def _open_binary(path: Path) -> Any:

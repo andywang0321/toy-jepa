@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from toy_jepa.constants import POSITION_SCALE, VELOCITY_SCALE
-from toy_jepa.metrics import (
+from toy_jepa.evaluation.metrics import (
     effective_rank,
     knn_accuracy,
     ridge_r2,
@@ -32,9 +32,7 @@ def test_knn_accuracy_on_separable_features() -> None:
     features = rng.normal(size=(100, 4)).astype(np.float32)
     labels = (features[:, 0] > 0).astype(np.int8).reshape(-1, 1)
 
-    accuracy = knn_accuracy(
-        features[:70], labels[:70], features[70:], labels[70:], k=5
-    )
+    accuracy = knn_accuracy(features[:70], labels[:70], features[70:], labels[70:], k=5)
     assert accuracy > 0.9
 
 

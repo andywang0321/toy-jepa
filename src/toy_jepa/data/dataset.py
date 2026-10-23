@@ -1,7 +1,7 @@
 """Moving MNIST generation.
 
 ``generate_dataset(seed, num_samples)`` is the only entry point for obtaining
-data. It loads MNIST through :mod:`toy_jepa.mnist_utils` and returns a fixed,
+data. It loads MNIST through :mod:`toy_jepa.data.mnist` and returns a fixed,
 labeled in-memory pool. Nothing is written to disk.
 """
 
@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from .constants import (
-    SEED, NUM_SAMPLES,
+from ..constants import (
+    SEED,
+    NUM_SAMPLES,
     CANVAS_SIZE,
     DIGIT_SIZE,
     NUM_FRAMES,
@@ -18,8 +19,8 @@ from .constants import (
     TRAIN_FRACTION,
     VAL_FRACTION,
 )
-from .mnist_utils import load_mnist
-from .types import Float32Array, Int8Array, Int32Array, MovingMNIST, UInt8Array
+from .mnist import load_mnist
+from ..core.types import Float32Array, Int8Array, Int32Array, MovingMNIST, UInt8Array
 
 
 def _reflect(
@@ -60,12 +61,10 @@ def _render_sequences(
                 x = min(max(int(xs[sequence, frame, digit]), 0), max_xy)
                 y = min(max(int(ys[sequence, frame, digit]), 0), max_xy)
                 patch = patches[sequence, digit]
-                window = frames[
-                    sequence, frame, y : y + digit_size, x : x + digit_size
-                ]
-                frames[
-                    sequence, frame, y : y + digit_size, x : x + digit_size
-                ] = np.maximum(window, patch)
+                window = frames[sequence, frame, y : y + digit_size, x : x + digit_size]
+                frames[sequence, frame, y : y + digit_size, x : x + digit_size] = (
+                    np.maximum(window, patch)
+                )
     return frames
 
 
@@ -88,15 +87,13 @@ def _sample_motion(
     speed_range: tuple[float, float],
 ) -> tuple[Float32Array, Float32Array]:
     """Sample initial positions and velocities, then simulate the bounces."""
-    position = rng.uniform(
-        0.0, max_position, size=(num_sequences, 2, 2)
-    ).astype(np.float32)
+    position = rng.uniform(0.0, max_position, size=(num_sequences, 2, 2)).astype(
+        np.float32
+    )
     speed = rng.uniform(
         speed_range[0], speed_range[1], size=(num_sequences, 2, 1)
     ).astype(np.float32)
-    angle = rng.uniform(
-        0.0, 2.0 * np.pi, size=(num_sequences, 2, 1)
-    ).astype(np.float32)
+    angle = rng.uniform(0.0, 2.0 * np.pi, size=(num_sequences, 2, 1)).astype(np.float32)
     velocity = (
         np.concatenate([np.cos(angle), np.sin(angle)], axis=-1).astype(np.float32)
         * speed

@@ -11,7 +11,7 @@ Usage:
 from __future__ import annotations
 
 from toy_jepa.constants import SEED, VISUALIZE_SAMPLES
-from toy_jepa.data import generate_dataset
+from toy_jepa.data.dataset import generate_dataset
 from toy_jepa.viz import visualize_sample
 
 

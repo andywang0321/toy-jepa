@@ -5,7 +5,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from toy_jepa.sigreg import sigreg_loss
+from toy_jepa.models.sigreg import sigreg_loss
 
 
 def test_sigreg_loss_is_finite_and_nonnegative() -> None:

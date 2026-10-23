@@ -5,7 +5,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from ..types import NormParams
+from ..core.types import NormParams
 
 GROUPS = 8
 
@@ -27,8 +27,11 @@ def init_layer_norm(dim: int) -> NormParams:
 
 
 def apply_group_norm(
-    params: NormParams, x: jax.Array,
-    *, groups: int = GROUPS, eps: float = 1e-5,
+    params: NormParams,
+    x: jax.Array,
+    *,
+    groups: int = GROUPS,
+    eps: float = 1e-5,
 ) -> jax.Array:
     """Apply group norm over the channel dimension of an NHWC tensor."""
     batch, height, width, channels = x.shape
@@ -43,8 +46,10 @@ def apply_group_norm(
 
 
 def apply_layer_norm(
-    params: NormParams, x: jax.Array,
-    *, eps: float = 1e-5,
+    params: NormParams,
+    x: jax.Array,
+    *,
+    eps: float = 1e-5,
 ) -> jax.Array:
     """Apply layer norm over the last dimension."""
     mean = jnp.mean(x, axis=-1, keepdims=True)

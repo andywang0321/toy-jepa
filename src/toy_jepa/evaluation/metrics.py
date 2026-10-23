@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from .constants import POSITION_SCALE, VELOCITY_SCALE
-from .types import Float32Array, Int8Array
+from ..constants import POSITION_SCALE, VELOCITY_SCALE
+from ..core.types import Float32Array, Int8Array
 
 
 def _as_float64(x: Float32Array) -> np.ndarray:
@@ -120,7 +120,9 @@ def knn_accuracy(
     y_train = np.asarray(train_labels)
     y_test = np.asarray(test_labels)
 
-    x_train = x_train / np.maximum(np.linalg.norm(x_train, axis=1, keepdims=True), 1e-12)
+    x_train = x_train / np.maximum(
+        np.linalg.norm(x_train, axis=1, keepdims=True), 1e-12
+    )
     x_test = x_test / np.maximum(np.linalg.norm(x_test, axis=1, keepdims=True), 1e-12)
 
     k = min(k, len(x_train))
@@ -130,10 +132,7 @@ def knn_accuracy(
     for column in range(y_train.shape[1]):
         votes = y_train[neighbors, column]
         predictions = np.array(
-            [
-                np.bincount(row, minlength=10).argmax()
-                for row in votes
-            ],
+            [np.bincount(row, minlength=10).argmax() for row in votes],
             dtype=np.int8,
         )
         accuracies.append(np.mean(predictions == y_test[:, column]))

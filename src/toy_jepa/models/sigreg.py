@@ -13,9 +13,7 @@ import jax
 import jax.numpy as jnp
 
 
-def _trapezoid_weights(
-    num_points: int, t_max: float
-) -> tuple[jax.Array, jax.Array]:
+def _trapezoid_weights(num_points: int, t_max: float) -> tuple[jax.Array, jax.Array]:
     """Return the quadrature grid and its composite trapezoid weights."""
     if num_points < 2:
         raise ValueError("num_points must be at least 2.")
@@ -56,9 +54,7 @@ def sigreg_loss(
 
     dim = features.shape[1]
     directions = jax.random.normal(key, (dim, num_projections))
-    directions = directions / jnp.linalg.norm(
-        directions, axis=0, keepdims=True
-    )
+    directions = directions / jnp.linalg.norm(directions, axis=0, keepdims=True)
     projections = features @ directions  # (B, M)
 
     t, weights = _trapezoid_weights(num_points, t_max)

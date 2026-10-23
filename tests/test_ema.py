@@ -5,16 +5,16 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from toy_jepa.ema import ema_update
+from toy_jepa.models.ema import ema_update
 from toy_jepa.models.cnn import init_cnn
 from toy_jepa.models.jepa_ema import (
     JEPAEMAParams,
     init_jepa_ema,
     jepa_ema_loss,
 )
-from toy_jepa.optim import adamw_init
-from toy_jepa.train import ema_train_step
-from toy_jepa.types import CNNParams, EMAState, TrainState
+from toy_jepa.core.optim import adamw_init
+from toy_jepa.core.train import ema_train_step
+from toy_jepa.core.types import CNNParams, EMAState, TrainState
 
 
 def _tree_distance(left: object, right: object) -> float:
@@ -45,9 +45,7 @@ def test_ema_update_moves_target_toward_online() -> None:
 def test_ema_train_step_updates_online_and_target() -> None:
     params = init_jepa_ema(jax.random.key(0), embed_dim=32, hidden_dim=32)
     state = EMAState(
-        train_state=TrainState(
-            params=params, opt_state=adamw_init(params)
-        ),
+        train_state=TrainState(params=params, opt_state=adamw_init(params)),
         target_encoder=params.encoder,
     )
     batch = (
@@ -75,9 +73,5 @@ def test_ema_train_step_updates_online_and_target() -> None:
     assert jax.tree.structure(next_state.target_encoder) == (
         jax.tree.structure(params.encoder)
     )
-    assert _tree_distance(
-        next_state.train_state.params, state.train_state.params
-    ) > 0.0
-    assert _tree_distance(
-        next_state.target_encoder, state.target_encoder
-    ) > 0.0
+    assert _tree_distance(next_state.train_state.params, state.train_state.params) > 0.0
+    assert _tree_distance(next_state.target_encoder, state.target_encoder) > 0.0

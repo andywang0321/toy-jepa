@@ -8,10 +8,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .constants import POSITION_SCALE, VELOCITY_SCALE
-from .data import make_context_target, pair_indices, state_at
+from ..constants import POSITION_SCALE, VELOCITY_SCALE
+from ..data.dataset import make_context_target, pair_indices, state_at
 from .metrics import effective_rank, feature_variance, mean_pairwise_cosine
-from .types import Float32Array, Int32Array, MovingMNIST, UInt8Array
+from ..core.types import Float32Array, Int32Array, MovingMNIST, UInt8Array
 
 K = 4
 
@@ -34,9 +34,7 @@ def make_batch(
     k: int = K,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Return ``(context, target_frame, target_state)`` for the pairs."""
-    context, target_frame = make_context_target(
-        dataset, sequence_idx, time_idx, k
-    )
+    context, target_frame = make_context_target(dataset, sequence_idx, time_idx, k)
     position, velocity, _ = state_at(dataset, sequence_idx, time_idx + k)
     return (
         normalize_frames(context),
@@ -65,38 +63,42 @@ def sample_indices(
 
 
 def sample_batch(
-    rng: np.random.Generator, dataset: MovingMNIST,
-    sequence_idx: Int32Array, time_idx: Int32Array, *,
-    batch_size: int, k: int = K,
+    rng: np.random.Generator,
+    dataset: MovingMNIST,
+    sequence_idx: Int32Array,
+    time_idx: Int32Array,
+    *,
+    batch_size: int,
+    k: int = K,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     choice = rng.integers(0, len(sequence_idx), size=batch_size)
-    return make_batch(
-        dataset, sequence_idx[choice], time_idx[choice], k=k
-    )
+    return make_batch(dataset, sequence_idx[choice], time_idx[choice], k=k)
 
 
 def fixed_batch(
-    dataset: MovingMNIST, sequence_idx: Int32Array,
-    time_idx: Int32Array, *, num_pairs: int, k: int = K,
+    dataset: MovingMNIST,
+    sequence_idx: Int32Array,
+    time_idx: Int32Array,
+    *,
+    num_pairs: int,
+    k: int = K,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     count = min(num_pairs, len(sequence_idx))
-    return make_batch(
-        dataset, sequence_idx[:count], time_idx[:count], k=k
-    )
+    return make_batch(dataset, sequence_idx[:count], time_idx[:count], k=k)
 
 
 def readout_split(
-    dataset: MovingMNIST, rng: np.random.Generator,
-    split: int, num_pairs: int, *, k: int = K,
+    dataset: MovingMNIST,
+    rng: np.random.Generator,
+    split: int,
+    num_pairs: int,
+    *,
+    k: int = K,
 ) -> tuple[jax.Array, jax.Array]:
     """Sample readout contexts and normalized target states for one split."""
     sequence_idx, time_idx = pair_indices(dataset, split, k)
-    sequence_idx, time_idx = sample_indices(
-        rng, sequence_idx, time_idx, num_pairs
-    )
-    context, _, target_state = make_batch(
-        dataset, sequence_idx, time_idx, k=k
-    )
+    sequence_idx, time_idx = sample_indices(rng, sequence_idx, time_idx, num_pairs)
+    context, _, target_state = make_batch(dataset, sequence_idx, time_idx, k=k)
     return context, target_state
 
 
@@ -120,7 +122,11 @@ class EvalRow(NamedTuple):
     rank: float
 
 
-_COLLAPSE_NAMES = {"effective_rank": "rank", "feature_variance": "variance", "mean_pairwise_cosine": "cosine"}
+_COLLAPSE_NAMES = {
+    "effective_rank": "rank",
+    "feature_variance": "variance",
+    "mean_pairwise_cosine": "cosine",
+}
 
 
 def summarize_readouts(

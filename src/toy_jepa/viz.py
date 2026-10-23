@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .constants import DIGIT_SIZE
-from .experiment import EvalRow
-from .types import Float32Array, Int8Array, UInt8Array
+from .evaluation.protocol import EvalRow
+from .core.types import Float32Array, Int8Array, UInt8Array
 
 _COLORS = ("tab:red", "tab:cyan")
 
@@ -26,10 +26,7 @@ def _metadata_line(
     x, y = position[frame, digit]
     vx, vy = velocity[frame, digit]
     label = "" if digit_label is None else f"label={int(digit_label[digit])}  "
-    return (
-        f"d{digit}  {label}"
-        f"x={x:5.1f}  y={y:5.1f}  vx={vx:+5.2f}  vy={vy:+5.2f}"
-    )
+    return f"d{digit}  {label}x={x:5.1f}  y={y:5.1f}  vx={vx:+5.2f}  vy={vy:+5.2f}"
 
 
 def visualize_sample(
@@ -118,7 +115,7 @@ def plot_dashboard(
 
     ``history`` is shared by every arm. ``readout_metrics`` maps a feature name
     (for example ``"c_t"`` or ``"z_hat"``) to the metrics returned by
-    :func:`toy_jepa.metrics.state_readout_metrics`; the final panel compares
+    :func:`toy_jepa.evaluation.metrics.state_readout_metrics`; the final panel compares
     their ``state_mse``.
     """
     if not history:
@@ -136,9 +133,7 @@ def plot_dashboard(
 
     axes[0, 0].plot(steps, train_losses, marker="o", markersize=3, label="train")
     axes[0, 0].plot(steps, val_losses, marker="o", markersize=3, label="val")
-    axes[0, 0].plot(
-        steps, persistence, linestyle="--", label="persistence"
-    )
+    axes[0, 0].plot(steps, persistence, linestyle="--", label="persistence")
     axes[0, 0].set_ylabel("MSE")
     axes[0, 0].set_yscale("log")
     axes[0, 0].legend()
@@ -165,8 +160,7 @@ def plot_dashboard(
     names = list(readout_metrics)
     if names:
         values = [
-            float(readout_metrics[name].get("state_mse", np.nan))
-            for name in names
+            float(readout_metrics[name].get("state_mse", np.nan)) for name in names
         ]
         bars = readout_axis.bar(np.arange(len(names)), values)
         readout_axis.set_xticks(np.arange(len(names)), names)
@@ -184,7 +178,11 @@ def plot_dashboard(
                 )
     else:
         readout_axis.text(
-            0.5, 0.5, "no readout metrics", ha="center", va="center",
+            0.5,
+            0.5,
+            "no readout metrics",
+            ha="center",
+            va="center",
             transform=readout_axis.transAxes,
         )
         readout_axis.set_xticks([])
@@ -197,4 +195,3 @@ def plot_dashboard(
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=150)
     plt.close(fig)
-

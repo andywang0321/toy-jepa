@@ -38,7 +38,7 @@ without reconstructing pixels. Then ask: what does the representation capture, w
 
 1. **Vanilla JAX.** Only `jax`, `jax.numpy`, `numpy`, `matplotlib`, `pytest` (plus `tqdm` if you want). No Flax, Equinox, Haiku, or other model frameworks. No classes with methods; a frozen dataclass or `NamedTuple` for static config is fine.
 2. **Params are PyTrees.** A model is `init_params(rng, config) -> params` and `apply(params, x) -> y`. Params are named records (`NamedTuple`) of arrays.
-3. **Pure core, impure shell.** Model/loss/optimizer/train-step functions do not read files, plot, print, or touch global RNG. Scripts handle seeding, logging, checkpointing, and plotting. Data I/O is `mnist_utils.py` and `data.py`; plotting is `viz.py`.
+3. **Pure core, impure shell.** Model/loss/optimizer/train-step functions do not read files, plot, print, or touch global RNG. Scripts handle seeding, logging, checkpointing, and plotting. Data I/O is `data/mnist.py` and `data/dataset.py`; plotting is `viz.py`.
 4. **One level of abstraction per function.** No function both loads data and trains. No generic framework, registries, or `Any`-heavy config objects.
 5. **JIT at the boundary.** `train_step` is pure, wrapped in `jax.jit` inside each arm script.
 6. **Explicit randomness.** Pass `PRNGKey`s; use `jax.random.split`; no `np.random` inside pure functions.
@@ -52,7 +52,7 @@ without reconstructing pixels. Then ask: what does the representation capture, w
 - Normalize to `[0, 1]`; no augmentation in v1.
 - `generate_dataset(seed, num_samples)` loads MNIST from `MNIST_DIR`, generates a fixed in-memory pool, and returns a `MovingMNIST`. Call it once per run. Use the same seed for every arm.
 
-The standard `mnist_test_seq.npy` contains frames only; there are no digit labels, positions, or velocities. Download the IDX files into `MNIST_DIR` (default `~/data/mnist`; at least the `train-*` pair, the `t10k-*` pair is optional). Expected names are `train-images.idx3-ubyte`, `train-labels.idx1-ubyte`, and optionally the `t10k-*` equivalents; hyphenated `.gz` variants work too. `mnist_utils.load_mnist` parses them and does not download anything.
+The standard `mnist_test_seq.npy` contains frames only; there are no digit labels, positions, or velocities. Download the IDX files into `MNIST_DIR` (default `~/data/mnist`; at least the `train-*` pair, the `t10k-*` pair is optional). Expected names are `train-images.idx3-ubyte`, `train-labels.idx1-ubyte`, and optionally the `t10k-*` equivalents; hyphenated `.gz` variants work too. `data.mnist.load_mnist` parses them and does not download anything.
 
 Data defaults live in `src/toy_jepa/constants.py`:
 
@@ -107,7 +107,7 @@ Each variant lives in its own small module with its own params, init, apply, and
   `L = || g(c_t) - sg(f_ema(x_{t+k})) ||²`, decay 0.99.
 - **EMA + SIGReg (`jepa_sigreg.py`):** `L = L_JEPA + λ * L_SIGReg(c_t)`, with `λ=0.1` by default and a fixed SIGReg key (`SEED + 5`).
 
-`ema.py` contains the pure EMA update; `train.py` contains generic `train_step` and `ema_train_step` with no model-specific losses.
+`models/ema.py` contains the pure EMA update; `core/train.py` contains generic `train_step` and `ema_train_step` with no model-specific losses.
 
 ### SIGReg
 
@@ -182,7 +182,7 @@ Train the pixel baseline (`scripts/m1_pixel.py`), compare against persistence (`
 
 ### M4 — EMA
 
-`scripts/m4_ema.py` pairs the online `TrainState` with an EMA target encoder in `types.EMAState`. `ema_train_step` updates the online model with AdamW, then EMA-updates the target outside the optimizer. Default decay is 0.99. Write `runs/m4_ema/`. Sweep `decay ∈ {0.99, 0.996, 0.999}` with `scripts/sweep_ema.py`.
+`scripts/m4_ema.py` pairs the online `TrainState` with an EMA target encoder in `core.types.EMAState`. `ema_train_step` updates the online model with AdamW, then EMA-updates the target outside the optimizer. Default decay is 0.99. Write `runs/m4_ema/`. Sweep `decay ∈ {0.99, 0.996, 0.999}` with `scripts/sweep_ema.py`.
 
 ### M5 — SIGReg
 
@@ -216,39 +216,36 @@ If barebones JEPA does not collapse, that is a result, not a failure. To probe t
 
 ```
 src/toy_jepa/
-  constants.py       # paths, data, and readout protocol constants
-  types.py           # array aliases, dataset and param records, TrainState/EMAState
-  mnist_utils.py     # MNIST IDX loading, I/O boundary
-  data.py            # generate_dataset, pairs, state lookup
+  constants.py            # data and readout constants
+  viz.py                  # plotting, including the dashboard
+  core/
+    types.py              # array aliases, dataset/param records, states
+    optim.py              # manual AdamW
+    train.py              # generic train_step and ema_train_step
+  data/
+    dataset.py            # generate_dataset, pairs, state lookup
+    mnist.py              # MNIST IDX loading
+  evaluation/
+    protocol.py           # batches, state normalization, readout splits, EvalRow
+    metrics.py            # rank, variance, cosine, state metrics
+    readout.py            # frozen-feature MLP readout
   models/
-    mlp.py           # affine layers + MLP MSE
-    norm.py          # group/layer norm
-    cnn.py           # conv blocks + frame encoder
-    baseline.py      # pixel-only params/init/apply/loss
-    jepa_base.py     # barebones params/init/apply/loss
-    jepa_stopgrad.py # stop-grad params/init/apply/loss
-    jepa_ema.py      # EMA params/init/apply/loss
-    jepa_sigreg.py   # EMA + SIGReg params/init/apply/loss
-  experiment.py      # batches, state normalization, readout splits, EvalRow, summary
-  readout.py         # common frozen-feature MLP readout
-  ema.py             # EMA update (pure)
-  sigreg.py          # SIGReg statistic (pure)
-  metrics.py         # rank, variance, cosine, probes, state metrics
-  optim.py           # manual AdamW (pure)
-  train.py           # generic train_step and ema_train_step
-  viz.py             # plotting, including the collapse dashboard
+    mlp.py, norm.py, cnn.py
+    baseline.py           # pixel-only params/init/apply/loss
+    jepa_base.py          # barebones params/init/apply/loss
+    jepa_stopgrad.py      # stop-grad params/init/apply/loss
+    jepa_ema.py           # EMA params/init/apply/loss
+    jepa_sigreg.py        # EMA + SIGReg params/init/apply/loss
+    ema.py, sigreg.py     # pure helpers
 scripts/
-  m0_overfit.py      # M0 overfit check
-  m1_pixel.py        # M1 pixel-only baseline + common readout
-  m2_jepa.py         # M2 barebones JEPA
-  m3_stopgrad.py     # M3 stop-grad JEPA
-  m4_ema.py          # M4 EMA JEPA
-  m5_sigreg.py       # M5 EMA + SIGReg JEPA
-  sweep_ema.py       # M4 decay sweep
-  sweep_sigreg.py    # M5 weight sweep
-  _artifacts.py      # shared CSV/JSON/dashboard writer
-  run_all.sh         # run every arm and sweep
-  visualize_data.py  # play a few samples
+  m0_overfit.py
+  m1_pixel.py ... m5_sigreg.py
+  sweep_ema.py, sweep_sigreg.py
+  analyze.py              # compare completed runs and sweeps
+  run_sweeps.sh           # phase 1
+  run_arms.sh             # phase 2
+  _artifacts.py           # CSV/JSON/dashboard writer
+  visualize_data.py
 tests/
 ```
 
@@ -258,24 +255,30 @@ Download the MNIST IDX files into `~/data/mnist`, then:
 
 ```bash
 uv sync
-uv run python scripts/visualize_data.py
 uv run pytest -q
+uv run python scripts/visualize_data.py
 
-# Five core arms (each writes its own runs/<arm>/ directory)
-uv run python scripts/m1_pixel.py
-uv run python scripts/m2_jepa.py
-uv run python scripts/m3_stopgrad.py
-uv run python scripts/m4_ema.py
-uv run python scripts/m5_sigreg.py
+# Phase 1: tune EMA and SIGReg first.
+bash scripts/run_sweeps.sh
 
-# Two sweeps
-uv run python scripts/sweep_ema.py
-uv run python scripts/sweep_sigreg.py
+# Inspect runs/analysis/report.md and runs/analysis/best.json.
+# Set EMA_DECAY in scripts/m4_ema.py and
+# SIGREG_WEIGHT in scripts/m5_sigreg.py.
+
+# Phase 2: the main comparison with the selected values.
+bash scripts/run_arms.sh
 ```
 
-`run_all.sh` runs all of the above. Do not run full training on CPU; use a tiny overridden `Config` for smoke tests.
+`analyze.py` writes `runs/analysis/summary.csv`, `report.md`, and the comparison plots. It reads existing run directories; it does not train anything.
 
-`visualize_data.py` overlays a velocity arrow (scaled 5×) on each digit and prints its label, top-left position, and velocity in the footer.
+For typing/linting:
+
+```bash
+ty check src/toy_jepa tests scripts
+ruff check src/toy_jepa tests scripts
+```
+
+Do not run full training on CPU; use a tiny overridden `Config` for smoke tests.
 
 ## Results
 

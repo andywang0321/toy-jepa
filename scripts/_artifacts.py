@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 from typing import Protocol
 
-from toy_jepa import constants, experiment
+from toy_jepa import constants
+from toy_jepa.evaluation import protocol as experiment
 from toy_jepa.viz import plot_dashboard
 
 

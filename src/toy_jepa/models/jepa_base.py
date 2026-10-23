@@ -7,7 +7,7 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 
-from ..types import CNNParams, MLPParams
+from ..core.types import CNNParams, MLPParams
 from .cnn import apply_cnn, init_cnn
 from .mlp import apply_mlp, init_mlp
 
