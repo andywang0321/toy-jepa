@@ -23,7 +23,7 @@ from _artifacts import write_run_artifacts
 RUN_DIR = Path(__file__).resolve().parents[1] / "runs" / "m5_sigreg"
 TITLE = "M5 EMA + SIGReg JEPA + common state readout"
 FEATURE_BATCH_SIZE = 256
-SIGREG_WEIGHT = 0.1
+SIGREG_WEIGHT = 0.03
 apply_jepa_sigreg_jit = jax.jit(jepa_sigreg.apply_jepa_sigreg)
 apply_cnn_jit = jax.jit(cnn.apply_cnn)
 

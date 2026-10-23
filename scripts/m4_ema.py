@@ -22,7 +22,7 @@ from _artifacts import write_run_artifacts
 RUN_DIR = Path(__file__).resolve().parents[1] / "runs" / "m4_ema"
 TITLE = "M4 EMA JEPA + common state readout"
 FEATURE_BATCH_SIZE = 256
-EMA_DECAY = 0.99
+EMA_DECAY = 0.996
 apply_jepa_ema_jit = jax.jit(jepa_ema.apply_jepa_ema)
 apply_cnn_jit = jax.jit(cnn.apply_cnn)
 
