@@ -1,0 +1,35 @@
+{
+  "num_samples": 10000,
+  "num_steps": 5000,
+  "batch_size": 64,
+  "k": 4,
+  "eval_every": 250,
+  "eval_pairs": 1000,
+  "probe_pairs": 1000,
+  "readout_pairs": [
+    6000,
+    1000,
+    1000
+  ],
+  "learning_rate": 0.001,
+  "weight_decay": 0.01,
+  "embed_dim": 128,
+  "hidden_dim": 256,
+  "seed": 3,
+  "run_dir": "/home/andy/projects/toy-jepa/runs/seeds/m1_pixel/seed_3",
+  "position_scale": 36.0,
+  "velocity_scale": 3.0,
+  "readout": {
+    "architecture": [
+      128,
+      256,
+      8
+    ],
+    "num_steps": 2000,
+    "batch_size": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "eval_every": 50,
+    "patience": 500
+  }
+}
