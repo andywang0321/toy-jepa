@@ -7,10 +7,14 @@ import jax.numpy as jnp
 
 from toy_jepa.ema import ema_update
 from toy_jepa.models.cnn import init_cnn
-from toy_jepa.models.jepa_base import init_jepa_base
+from toy_jepa.models.jepa_ema import (
+    JEPAEMAParams,
+    init_jepa_ema,
+    jepa_ema_loss,
+)
 from toy_jepa.optim import adamw_init
-from toy_jepa.train import ema_train_step, jepa_ema_loss
-from toy_jepa.types import CNNParams, JEPABaseParams, JEPAEMAState, TrainState
+from toy_jepa.train import ema_train_step
+from toy_jepa.types import CNNParams, EMAState, TrainState
 
 
 def _tree_distance(left: object, right: object) -> float:
@@ -39,23 +43,23 @@ def test_ema_update_moves_target_toward_online() -> None:
 
 
 def test_ema_train_step_updates_online_and_target() -> None:
-    params = init_jepa_base(
-        jax.random.key(0), embed_dim=32, hidden_dim=32
-    )
-    state = JEPAEMAState(
+    params = init_jepa_ema(jax.random.key(0), embed_dim=32, hidden_dim=32)
+    state = EMAState(
         train_state=TrainState(
             params=params, opt_state=adamw_init(params)
         ),
         target_encoder=params.encoder,
     )
-    context = jnp.zeros((2, 2, 64, 64), dtype=jnp.float32)
-    target_frame = jnp.ones((2, 64, 64), dtype=jnp.float32)
-    target_state = jnp.zeros((2, 8), dtype=jnp.float32)
+    batch = (
+        jnp.zeros((2, 2, 64, 64), dtype=jnp.float32),
+        jnp.ones((2, 64, 64), dtype=jnp.float32),
+    )
 
     next_state, loss = ema_train_step(
         state,
-        (context, target_frame, target_state),
+        batch,
         jepa_ema_loss,
+        lambda p: p.encoder,
         lr=1e-3,
         weight_decay=0.0,
         decay=0.5,
@@ -63,7 +67,7 @@ def test_ema_train_step_updates_online_and_target() -> None:
 
     assert int(next_state.train_state.opt_state.t) == 1
     assert jnp.isfinite(loss)
-    assert isinstance(next_state.train_state.params, JEPABaseParams)
+    assert isinstance(next_state.train_state.params, JEPAEMAParams)
     assert isinstance(next_state.target_encoder, CNNParams)
     assert jax.tree.structure(next_state.train_state.params) == (
         jax.tree.structure(params)
