@@ -1,0 +1,36 @@
+{
+  "variant": "ema",
+  "num_samples": 2000,
+  "k": 4,
+  "batch_size": 64,
+  "num_steps": 1500,
+  "eval_every": 100,
+  "learning_rate": 0.001,
+  "weight_decay": 0.01,
+  "embed_dim": 128,
+  "hidden_dim": 256,
+  "ema_decay": 0.99,
+  "sigreg_weight": 0.1,
+  "eval_pairs": 256,
+  "probe_pairs": 1000,
+  "position_scale": 36.0,
+  "velocity_scale": 3.0,
+  "seed": 0,
+  "sigreg_key_seed": 5,
+  "readout": {
+    "architecture": [
+      128,
+      256,
+      8
+    ],
+    "num_steps": 2000,
+    "batch_size": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "eval_every": 50,
+    "patience": 500,
+    "train_pairs": 6000,
+    "val_pairs": 2000,
+    "test_pairs": 2000
+  }
+}
