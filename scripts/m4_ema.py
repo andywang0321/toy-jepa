@@ -40,6 +40,7 @@ class Config(NamedTuple):
     weight_decay: float = 0.01
     embed_dim: int = 128
     hidden_dim: int = 256
+    seed: int = constants.SEED
     ema_decay: float = EMA_DECAY
     run_dir: Path = RUN_DIR
 
@@ -119,7 +120,7 @@ def train(
         train_state=types.TrainState(params=params, opt_state=adamw_init(params)),
         target_encoder=params.encoder,
     )
-    rng = np.random.default_rng(constants.SEED + 1)
+    rng = np.random.default_rng(config.seed + 1)
 
     @jax.jit
     def step(state: types.EMAState[jepa_ema.JEPAEMAParams], batch):
@@ -166,7 +167,7 @@ def train(
 
 def run(config: Config) -> None:
     """Train EMA JEPA, then fit and evaluate the common readout."""
-    dataset = generate_dataset(constants.SEED, config.num_samples)
+    dataset = generate_dataset(config.seed, config.num_samples)
     train_sequence, train_time = pair_indices(dataset, 0, config.k)
     val_sequence, val_time = pair_indices(dataset, 1, config.k)
     test_sequence, test_time = pair_indices(dataset, 2, config.k)
@@ -185,7 +186,7 @@ def run(config: Config) -> None:
         f"test={len(test_sequence):,}"
     )
 
-    model_key, c_key, z_key = jax.random.split(jax.random.key(constants.SEED), 3)
+    model_key, c_key, z_key = jax.random.split(jax.random.key(config.seed), 3)
     params, target_encoder, history = train(
         config,
         dataset,
@@ -202,7 +203,7 @@ def run(config: Config) -> None:
     test_targets = apply_cnn_jit(target_encoder, test_target[..., None])
     target_variance = feature_variance(np.asarray(test_targets))
 
-    readout_rng = np.random.default_rng(constants.SEED + 2)
+    readout_rng = np.random.default_rng(config.seed + 2)
     readout_arrays = [
         experiment.readout_split(dataset, readout_rng, split, n, k=config.k)
         for split, n in enumerate(config.readout_pairs)
@@ -224,7 +225,7 @@ def run(config: Config) -> None:
         val_states,
         test_c,
         test_states,
-        seed=constants.SEED + 3,
+        seed=config.seed + 3,
     )
     z_test, z_val = readout.fit_readout(
         z_key,
@@ -234,7 +235,7 @@ def run(config: Config) -> None:
         val_states,
         test_z,
         test_states,
-        seed=constants.SEED + 4,
+        seed=config.seed + 4,
     )
     c_collapse = experiment.collapse_metrics(test_c)
     z_collapse = experiment.collapse_metrics(test_z)

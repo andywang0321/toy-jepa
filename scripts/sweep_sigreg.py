@@ -41,6 +41,7 @@ class Config(NamedTuple):
     weight_decay: float = 0.01
     embed_dim: int = 128
     hidden_dim: int = 256
+    seed: int = constants.SEED
     ema_decay: float = 0.99
     sigreg_weight: float = 0.1
     run_dir: Path = SWEEP_DIR

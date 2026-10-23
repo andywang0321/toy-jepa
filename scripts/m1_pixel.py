@@ -38,6 +38,7 @@ class Config(NamedTuple):
     weight_decay: float = 0.01
     embed_dim: int = 128
     hidden_dim: int = 256
+    seed: int = constants.SEED
     run_dir: Path = RUN_DIR
 
 
@@ -82,7 +83,7 @@ def train_baseline(
         key, embed_dim=config.embed_dim, hidden_dim=config.hidden_dim
     )
     state = types.TrainState(params=params, opt_state=adamw_init(params))
-    rng = np.random.default_rng(constants.SEED + 1)
+    rng = np.random.default_rng(config.seed + 1)
 
     @jax.jit
     def step(state: types.TrainState[baseline.BaselineParams], batch):
@@ -132,7 +133,7 @@ def train_baseline(
 
 def run(config: Config) -> None:
     """Train the baseline, then train and evaluate the common readout."""
-    dataset = generate_dataset(constants.SEED, config.num_samples)
+    dataset = generate_dataset(config.seed, config.num_samples)
     train_sequence, train_time = pair_indices(dataset, 0, config.k)
     val_sequence, val_time = pair_indices(dataset, 1, config.k)
     test_sequence, test_time = pair_indices(dataset, 2, config.k)
@@ -151,7 +152,7 @@ def run(config: Config) -> None:
         f"test={len(test_sequence):,}"
     )
 
-    model_key, c_key, z_key = jax.random.split(jax.random.key(constants.SEED), 3)
+    model_key, c_key, z_key = jax.random.split(jax.random.key(config.seed), 3)
     state, history = train_baseline(
         config,
         dataset,
@@ -166,7 +167,7 @@ def run(config: Config) -> None:
         state.params, test_context, test_pixels
     )
 
-    readout_rng = np.random.default_rng(constants.SEED + 2)
+    readout_rng = np.random.default_rng(config.seed + 2)
     readout_arrays = [
         experiment.readout_split(dataset, readout_rng, split, n, k=config.k)
         for split, n in enumerate(config.readout_pairs)
@@ -188,7 +189,7 @@ def run(config: Config) -> None:
         val_states,
         test_c,
         test_states,
-        seed=constants.SEED + 3,
+        seed=config.seed + 3,
     )
     z_test, z_val = readout.fit_readout(
         z_key,
@@ -198,7 +199,7 @@ def run(config: Config) -> None:
         val_states,
         test_z,
         test_states,
-        seed=constants.SEED + 4,
+        seed=config.seed + 4,
     )
     c_collapse = experiment.collapse_metrics(test_c)
     z_collapse = experiment.collapse_metrics(test_z)

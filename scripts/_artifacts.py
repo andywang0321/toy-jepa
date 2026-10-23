@@ -24,6 +24,9 @@ class RunConfig(Protocol):
     @property
     def hidden_dim(self) -> int: ...
 
+    @property
+    def seed(self) -> int: ...
+
     def _asdict(self) -> dict[str, object]: ...
 
 
@@ -41,7 +44,7 @@ def write_run_artifacts(
         **config._asdict(),
         "position_scale": constants.POSITION_SCALE,
         "velocity_scale": constants.VELOCITY_SCALE,
-        "seed": constants.SEED,
+        "seed": config.seed,
         "readout": {
             "architecture": [config.embed_dim, config.hidden_dim, 8],
             **constants.READOUT_CONFIG,

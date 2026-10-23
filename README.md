@@ -26,7 +26,7 @@ without reconstructing pixels. Then ask: what does the representation capture, w
 - Baseline: same encoder/trunk, pixel-only head; state quality is measured post hoc with a common MLP readout.
 - JEPA variants: barebones, stop-grad, EMA, EMA + SIGReg.
 - Probes: digit identity, position, velocity; collapse metrics.
-- 3-seed comparison and a short write-up.
+- 5-seed comparison at 5,000 steps and a short write-up.
 
 **Out of scope (v1)**
 
@@ -160,9 +160,9 @@ Every arm uses the same defaults (override the `Config` in a script for a smoke 
 | M3 | Does stop-grad fix it? | JEPA + stop-grad | Rank/probe comparison |
 | M4 | Does a moving target stabilize it? | JEPA + EMA | EMA decay sweep |
 | M5 | Does an explicit regularizer help? | JEPA + SIGReg | λ sweep, rank/probe comparison |
-| M6 | Is the effect real? | 3-seed ablations + report | Table, dashboard, write-up |
+| M6 | Is the effect real? | 5-seed ablations + report | Table, dashboard, write-up |
 
-**Minimum path:** M0–M5 with one seed each, then the core arms in M6 with three seeds.
+**Minimum path:** M0–M5 with one seed each, then the core arms in M6 with five seeds.
 
 ### M0 — Data + JAX warm-up
 
@@ -190,7 +190,7 @@ Train the pixel baseline (`scripts/m1_pixel.py`), compare against persistence (`
 
 ### M6 — Ablations + report
 
-3 seeds per arm; `k=1` vs `k=4`; predictor depth; batch size. Final table and dashboard; 1–2 page write-up.
+5 seeds per arm at 5,000 steps; `k=1` vs `k=4`; predictor depth; batch size. Final table and dashboard; 1–2 page write-up.
 
 ## Sweeps
 
@@ -241,9 +241,12 @@ scripts/
   m0_overfit.py
   m1_pixel.py ... m5_sigreg.py
   sweep_ema.py, sweep_sigreg.py
-  analyze.py              # compare completed runs and sweeps
-  run_sweeps.sh           # phase 1
-  run_arms.sh             # phase 2
+  sweep_seeds.py           # M1-M5 at five seeds, 5,000 steps
+  analyze.py               # compare completed runs and sweeps
+  analyze_seeds.py         # mean/std over seed runs
+  run_sweeps.sh            # phase 1
+  run_arms.sh              # phase 2
+  run_seeds.sh             # seed replication
   _artifacts.py           # CSV/JSON/dashboard writer
   visualize_data.py
 tests/
@@ -267,7 +270,13 @@ bash scripts/run_sweeps.sh
 
 # Phase 2: the main comparison with the selected values.
 bash scripts/run_arms.sh
+
+# Seed replication: five seeds, 5,000 steps, all five arms.
+bash scripts/run_seeds.sh
 ```
+
+`run_seeds.sh` writes `runs/seeds/<arm>/seed_<n>/` and summarizes to
+`runs/analysis/seed_summary.csv`, `seed_report.md`, and `seed_comparison.png`.
 
 `analyze.py` writes `runs/analysis/summary.csv`, `report.md`, and the comparison plots. It reads existing run directories; it does not train anything.
 
