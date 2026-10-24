@@ -79,9 +79,7 @@ def train_baseline(
     key: jax.Array,
 ) -> tuple[types.TrainState[baseline.BaselineParams], list[experiment.EvalRow]]:
     """Train the pixel baseline and log loss/collapse diagnostics."""
-    params = baseline.init_baseline(
-        key, embed_dim=config.embed_dim, hidden_dim=config.hidden_dim
-    )
+    params = baseline.init_baseline(key, embed_dim=config.embed_dim, hidden_dim=config.hidden_dim)
     state = types.TrainState(params=params, opt_state=adamw_init(params))
     rng = np.random.default_rng(config.seed + 1)
 
@@ -107,9 +105,7 @@ def train_baseline(
         )
         state, loss = step(state, (batch[0], batch[1]))
         if i % config.eval_every == 0 or i == config.num_steps - 1:
-            val_mse, persistence = evaluate_pixels(
-                state.params, val_context, val_pixels
-            )
+            val_mse, persistence = evaluate_pixels(state.params, val_context, val_pixels)
             _, probe_c, _ = apply_baseline_jit(state.params, probe_context)
             collapse = experiment.collapse_metrics(np.asarray(probe_c))
             row = experiment.EvalRow(
@@ -147,10 +143,7 @@ def run(config: Config) -> None:
         dataset, val_sequence, val_time, num_pairs=config.probe_pairs, k=config.k
     )
     print(f"frames: {dataset.frames.shape}")
-    print(
-        f"pairs: train={len(train_sequence):,} val={len(val_sequence):,} "
-        f"test={len(test_sequence):,}"
-    )
+    print(f"pairs: train={len(train_sequence):,} val={len(val_sequence):,} test={len(test_sequence):,}")
 
     model_key, c_key, z_key = jax.random.split(jax.random.key(config.seed), 3)
     state, history = train_baseline(
@@ -163,9 +156,7 @@ def run(config: Config) -> None:
         probe_context,
         model_key,
     )
-    test_mse, test_persistence = evaluate_pixels(
-        state.params, test_context, test_pixels
-    )
+    test_mse, test_persistence = evaluate_pixels(state.params, test_context, test_pixels)
 
     readout_rng = np.random.default_rng(config.seed + 2)
     readout_arrays = [
@@ -221,9 +212,7 @@ def run(config: Config) -> None:
             }
         )
     )
-    write_run_artifacts(
-        config, TITLE, history, metrics, {"c_t": c_test, "z_hat": z_test}
-    )
+    write_run_artifacts(config, TITLE, history, metrics, {"c_t": c_test, "z_hat": z_test})
 
     print(f"test pixel MSE: {test_mse:.6f}")
     print(f"test persistence MSE: {test_persistence:.6f}")

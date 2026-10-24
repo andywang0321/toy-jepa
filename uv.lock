@@ -1269,6 +1269,24 @@ wheels = [
 ]
 
 [[package]]
+name = "tiny-worlds"
+version = "0.1.0"
+source = { editable = "../tiny-worlds" }
+
+[package.optional-dependencies]
+friction-mnist = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "matplotlib", marker = "extra == 'friction-mnist'", specifier = ">=3.11.2" },
+    { name = "numpy", marker = "extra == 'friction-mnist'", specifier = ">=2.5.4" },
+]
+provides-extras = ["friction-mnist"]
+
+[[package]]
 name = "tornado"
 version = "6.5.10"
 source = { registry = "https://pypi.org/simple" }
@@ -1294,6 +1312,7 @@ dependencies = [
     { name = "jax", extra = ["cuda13"], marker = "sys_platform == 'linux'" },
     { name = "matplotlib" },
     { name = "numpy" },
+    { name = "tiny-worlds", extra = ["friction-mnist"] },
 ]
 
 [package.dev-dependencies]
@@ -1308,6 +1327,7 @@ requires-dist = [
     { name = "jax", extras = ["cuda13"], marker = "sys_platform == 'linux'" },
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "numpy", specifier = ">=2.5.4" },
+    { name = "tiny-worlds", extras = ["friction-mnist"], editable = "../tiny-worlds" },
 ]
 
 [package.metadata.requires-dev]

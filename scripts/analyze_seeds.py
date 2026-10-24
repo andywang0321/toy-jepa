@@ -29,11 +29,7 @@ METRICS = (
 
 def read_probes(path: Path) -> dict[str, float]:
     with path.open() as file:
-        return {
-            row["metric"]: float(row["value"])
-            for row in csv.DictReader(file)
-            if row.get("value", "") != ""
-        }
+        return {row["metric"]: float(row["value"]) for row in csv.DictReader(file) if row.get("value", "") != ""}
 
 
 def load_arm(arm: str) -> dict[str, tuple[float, float, int]]:

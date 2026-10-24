@@ -12,6 +12,7 @@ dependencies = [
     "jax; sys_platform != 'linux'",
     "matplotlib>=3.11.2",
     "numpy>=2.5.4",
+    "tiny-worlds[friction-mnist]",
 ]
 
 [build-system]
@@ -28,3 +29,6 @@ dev = [
 [tool.ruff]
 target-version = "py313"
 line-length = 120
+
+[tool.uv.sources]
+tiny-worlds = { path = "../tiny-worlds", editable = true }

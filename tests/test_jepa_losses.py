@@ -34,9 +34,7 @@ def test_stopgrad_loss_matches_base_loss_value() -> None:
     stopgrad = init_jepa_stopgrad(key, embed_dim=32, hidden_dim=32)
     batch = _batch()
 
-    assert jnp.allclose(
-        jepa_stopgrad_loss(stopgrad, batch), jepa_base_loss(base, batch)
-    )
+    assert jnp.allclose(jepa_stopgrad_loss(stopgrad, batch), jepa_base_loss(base, batch))
 
 
 def test_ema_loss_is_finite() -> None:
@@ -49,18 +47,14 @@ def test_ema_loss_is_finite() -> None:
 def test_ema_target_receives_no_gradient() -> None:
     params = init_jepa_ema(jax.random.key(0), embed_dim=32, hidden_dim=32)
     batch = _batch()
-    grads = jax.grad(
-        lambda target_encoder: jepa_ema_loss(params, target_encoder, batch)
-    )(params.encoder)
+    grads = jax.grad(lambda target_encoder: jepa_ema_loss(params, target_encoder, batch))(params.encoder)
     for grad in jax.tree.leaves(grads):
         assert jnp.all(grad == 0.0)
 
 
 def test_sigreg_loss_is_finite_and_nonnegative() -> None:
     params = init_jepa_sigreg(jax.random.key(0), embed_dim=32, hidden_dim=32)
-    loss = jepa_sigreg_loss(
-        params, params.encoder, _batch(), key=jax.random.key(1), weight=0.1
-    )
+    loss = jepa_sigreg_loss(params, params.encoder, _batch(), key=jax.random.key(1), weight=0.1)
     assert jnp.isfinite(loss)
     assert loss >= 0.0
 
@@ -68,9 +62,7 @@ def test_sigreg_loss_is_finite_and_nonnegative() -> None:
 def test_sigreg_weight_zero_keeps_the_latent_loss() -> None:
     params = init_jepa_sigreg(jax.random.key(0), embed_dim=32, hidden_dim=32)
     batch = _batch()
-    with_sigreg = jepa_sigreg_loss(
-        params, params.encoder, batch, key=jax.random.key(1), weight=0.0
-    )
+    with_sigreg = jepa_sigreg_loss(params, params.encoder, batch, key=jax.random.key(1), weight=0.0)
     z_hat, _ = apply_jepa_sigreg(params, batch[0])
     z_target = apply_cnn(params.encoder, batch[1][..., None])
     latent = jnp.mean((z_hat - jax.lax.stop_gradient(z_target)) ** 2)

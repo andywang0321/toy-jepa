@@ -50,9 +50,7 @@ def write_run_artifacts(
             **constants.READOUT_CONFIG,
         },
     }
-    (run_dir / "config.json").write_text(
-        json.dumps(payload, indent=2, default=str) + "\n"
-    )
+    (run_dir / "config.json").write_text(json.dumps(payload, indent=2, default=str) + "\n")
     for name, header, rows in (
         ("metrics.csv", experiment.EvalRow._fields, history),
         ("probes.csv", ("metric", "value"), metrics.items()),

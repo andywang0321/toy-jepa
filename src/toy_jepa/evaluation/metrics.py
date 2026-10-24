@@ -120,9 +120,7 @@ def knn_accuracy(
     y_train = np.asarray(train_labels)
     y_test = np.asarray(test_labels)
 
-    x_train = x_train / np.maximum(
-        np.linalg.norm(x_train, axis=1, keepdims=True), 1e-12
-    )
+    x_train = x_train / np.maximum(np.linalg.norm(x_train, axis=1, keepdims=True), 1e-12)
     x_test = x_test / np.maximum(np.linalg.norm(x_test, axis=1, keepdims=True), 1e-12)
 
     k = min(k, len(x_train))

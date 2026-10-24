@@ -19,12 +19,7 @@ from toy_jepa.core.types import CNNParams, EMAState, TrainState
 
 def _tree_distance(left: object, right: object) -> float:
     """Squared Euclidean distance between two parameter trees."""
-    return float(
-        sum(
-            jnp.sum((a - b) ** 2)
-            for a, b in zip(jax.tree.leaves(left), jax.tree.leaves(right))
-        )
-    )
+    return float(sum(jnp.sum((a - b) ** 2) for a, b in zip(jax.tree.leaves(left), jax.tree.leaves(right))))
 
 
 def test_ema_update_moves_target_toward_online() -> None:
@@ -67,11 +62,7 @@ def test_ema_train_step_updates_online_and_target() -> None:
     assert jnp.isfinite(loss)
     assert isinstance(next_state.train_state.params, JEPAEMAParams)
     assert isinstance(next_state.target_encoder, CNNParams)
-    assert jax.tree.structure(next_state.train_state.params) == (
-        jax.tree.structure(params)
-    )
-    assert jax.tree.structure(next_state.target_encoder) == (
-        jax.tree.structure(params.encoder)
-    )
+    assert jax.tree.structure(next_state.train_state.params) == (jax.tree.structure(params))
+    assert jax.tree.structure(next_state.target_encoder) == (jax.tree.structure(params.encoder))
     assert _tree_distance(next_state.train_state.params, state.train_state.params) > 0.0
     assert _tree_distance(next_state.target_encoder, state.target_encoder) > 0.0

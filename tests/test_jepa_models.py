@@ -52,9 +52,7 @@ def test_base_and_stopgrad_have_finite_gradients() -> None:
     batch = (context, target)
 
     base = jepa_base.init_jepa_base(jax.random.key(0), embed_dim=32, hidden_dim=32)
-    stopgrad = jepa_stopgrad.init_jepa_stopgrad(
-        jax.random.key(0), embed_dim=32, hidden_dim=32
-    )
+    stopgrad = jepa_stopgrad.init_jepa_stopgrad(jax.random.key(0), embed_dim=32, hidden_dim=32)
     _assert_finite_grads(lambda p: jepa_base.jepa_base_loss(p, batch), base)
     _assert_finite_grads(lambda p: jepa_stopgrad.jepa_stopgrad_loss(p, batch), stopgrad)
 
@@ -62,14 +60,10 @@ def test_base_and_stopgrad_have_finite_gradients() -> None:
 def test_ema_and_sigreg_have_finite_gradients() -> None:
     batch = (_context(), jnp.zeros((2, 64, 64), dtype=jnp.float32))
     ema = jepa_ema.init_jepa_ema(jax.random.key(0), embed_dim=32, hidden_dim=32)
-    sigreg = jepa_sigreg.init_jepa_sigreg(
-        jax.random.key(0), embed_dim=32, hidden_dim=32
-    )
+    sigreg = jepa_sigreg.init_jepa_sigreg(jax.random.key(0), embed_dim=32, hidden_dim=32)
 
     _assert_finite_grads(lambda p: jepa_ema.jepa_ema_loss(p, p.encoder, batch), ema)
     _assert_finite_grads(
-        lambda p: jepa_sigreg.jepa_sigreg_loss(
-            p, p.encoder, batch, key=jax.random.key(1), weight=0.1
-        ),
+        lambda p: jepa_sigreg.jepa_sigreg_loss(p, p.encoder, batch, key=jax.random.key(1), weight=0.1),
         sigreg,
     )

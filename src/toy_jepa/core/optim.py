@@ -36,9 +36,7 @@ def adamw_update(
     t = opt_state.t + 1
 
     m_next = jax.tree.map(lambda m, g: _update_moment(m, g, beta1), opt_state.m, grads)
-    v_next = jax.tree.map(
-        lambda v, g: _update_moment(v, jnp.square(g), beta2), opt_state.v, grads
-    )
+    v_next = jax.tree.map(lambda v, g: _update_moment(v, jnp.square(g), beta2), opt_state.v, grads)
 
     bc1 = 1.0 - beta1**t
     bc2 = 1.0 - beta2**t

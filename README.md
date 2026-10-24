@@ -32,6 +32,11 @@ State prediction saturates around `R² ~= 0.36`; changing the objective moves
 the geometry, not the state information. The full report is
 [docs/phase1.md](docs/phase1.md).
 
+The phase 1 results use the original constant-velocity, `T=20` world. The
+current data path now generates the friction world from `tiny-worlds` (`T=100`,
+damping, inelastic bounces, stop times) for phase 2; phase 1 artifacts remain
+historical.
+
 ## Protocol
 
 - 10,000 Moving MNIST sequences, `T=20`, `64x64`.
@@ -81,7 +86,7 @@ tests/
 
 ## Run
 
-MNIST IDX files go in `~/data/mnist` (see `constants.py`).
+MNIST IDX files go in `~/data/mnist` (the `tiny-worlds` default).
 
 ```bash
 uv sync
@@ -112,5 +117,6 @@ ruff check src/toy_jepa tests scripts
 - [Phase 1 report](docs/phase1.md)
 - [Metric guide](docs/metrics.md)
 
-Phase 2 will vary context length `m` and horizon `k`, including a
-k-conditioned predictor. That is not implemented yet.
+Phase 2 uses the friction world from `tiny-worlds`: variable context `m`,
+variable horizon `k`, final-stop targets, and new model/experiment designs.
+That is the next implementation step.

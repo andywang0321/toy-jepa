@@ -1,4 +1,4 @@
-"""Visualize a few generated Moving MNIST sequences.
+"""Visualize a few friction Moving MNIST sequences.
 
 Generates ``VISUALIZE_SAMPLES`` sequences in memory and plays them with
 velocity arrows and per-digit position/velocity metadata. All defaults live in
@@ -12,19 +12,14 @@ from __future__ import annotations
 
 from toy_jepa.constants import SEED, VISUALIZE_SAMPLES
 from toy_jepa.data.dataset import generate_dataset
-from toy_jepa.viz import visualize_sample
+from tiny_worlds.friction_mnist import visualize_sample
 
 
 def main() -> None:
     """Play a few samples."""
     dataset = generate_dataset(SEED, VISUALIZE_SAMPLES)
-    for frames, position, velocity, digit_label in zip(
-        dataset.frames,
-        dataset.position,
-        dataset.velocity,
-        dataset.digit_label,
-    ):
-        visualize_sample(frames, position, velocity, digit_label)
+    for index in range(VISUALIZE_SAMPLES):
+        visualize_sample(dataset, index)
 
 
 if __name__ == "__main__":

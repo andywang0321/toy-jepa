@@ -8,6 +8,8 @@ import jax
 import numpy as np
 from numpy.typing import NDArray
 
+from tiny_worlds.friction_mnist import FrictionMNIST
+
 type UInt8Array = NDArray[np.uint8]
 type Int8Array = NDArray[np.int8]
 type Int32Array = NDArray[np.int32]
@@ -15,15 +17,7 @@ type Float32Array = NDArray[np.float32]
 type ArrayLike = Float32Array | jax.Array
 
 
-class MovingMNIST(NamedTuple):
-    """A labeled Moving MNIST dataset."""
-
-    frames: UInt8Array  # (N, T, H, W)
-    digit_label: Int8Array  # (N, 2)
-    digit_index: Int32Array  # (N, 2)
-    position: Float32Array  # (N, T, 2, 2), top-left pixels
-    velocity: Float32Array  # (N, T, 2, 2), pixels/frame
-    split: Int8Array  # (N,), 0=train, 1=val, 2=test
+MovingMNIST = FrictionMNIST
 
 
 class AffineParams(NamedTuple):

@@ -84,9 +84,7 @@ def evaluate(
     train_loss: float,
 ) -> experiment.EvalRow:
     """Evaluate loss, persistence, and collapse diagnostics on fixed probes."""
-    val_loss, persistence = loss_and_persistence(
-        params, target_encoder, val_context, val_target
-    )
+    val_loss, persistence = loss_and_persistence(params, target_encoder, val_context, val_target)
     _, c_t = apply_jepa_base_jit(params, probe_context)
     collapse = experiment.collapse_metrics(np.asarray(c_t))
     return experiment.EvalRow(
@@ -111,9 +109,7 @@ def train(
     key: jax.Array,
 ) -> tuple[jepa_base.JEPABaseParams, list[experiment.EvalRow]]:
     """Train the model and log shared evaluation rows."""
-    params = jepa_base.init_jepa_base(
-        key, embed_dim=config.embed_dim, hidden_dim=config.hidden_dim
-    )
+    params = jepa_base.init_jepa_base(key, embed_dim=config.embed_dim, hidden_dim=config.hidden_dim)
     state = types.TrainState(params=params, opt_state=adamw_init(params))
     rng = np.random.default_rng(config.seed + 1)
 
@@ -174,10 +170,7 @@ def run(config: Config) -> None:
         dataset, val_sequence, val_time, num_pairs=config.probe_pairs, k=config.k
     )
     print(f"frames: {dataset.frames.shape}")
-    print(
-        f"pairs: train={len(train_sequence):,} val={len(val_sequence):,} "
-        f"test={len(test_sequence):,}"
-    )
+    print(f"pairs: train={len(train_sequence):,} val={len(val_sequence):,} test={len(test_sequence):,}")
 
     model_key, c_key, z_key = jax.random.split(jax.random.key(config.seed), 3)
     params, history = train(
@@ -191,9 +184,7 @@ def run(config: Config) -> None:
         model_key,
     )
     target_encoder = params.encoder
-    test_loss, test_persistence = loss_and_persistence(
-        params, target_encoder, test_context, test_target
-    )
+    test_loss, test_persistence = loss_and_persistence(params, target_encoder, test_context, test_target)
     test_targets = apply_cnn_jit(target_encoder, test_target[..., None])
     target_variance = feature_variance(np.asarray(test_targets))
 
@@ -251,9 +242,7 @@ def run(config: Config) -> None:
             }
         )
     )
-    write_run_artifacts(
-        config, TITLE, history, metrics, {"c_t": c_test, "z_hat": z_test}
-    )
+    write_run_artifacts(config, TITLE, history, metrics, {"c_t": c_test, "z_hat": z_test})
 
     print(f"test latent MSE: {test_loss:.6f}  persistence: {test_persistence:.6f}")
     for name, result in (("c_t", c_test), ("z_hat", z_test)):

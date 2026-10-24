@@ -74,9 +74,7 @@ def train_readout(
         return train_step(state, batch, mlp_mse_loss, lr=lr, weight_decay=weight_decay)
 
     @jax.jit
-    def validation_loss(
-        params: MLPParams, features: jax.Array, states: jax.Array
-    ) -> jax.Array:
+    def validation_loss(params: MLPParams, features: jax.Array, states: jax.Array) -> jax.Array:
         return jnp.mean((apply_readout(params, features) - states) ** 2)
 
     best_mse = float(validation_loss(state.params, val_x, val_y))

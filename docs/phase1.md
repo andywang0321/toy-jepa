@@ -1,5 +1,8 @@
 # Phase 1: what does JEPA learn on Moving MNIST?
 
+> Historical note: phase 1 used the original constant-velocity, `T=20` world.
+> The current data path uses the friction world in `tiny-worlds` for phase 2.
+
 ## Question
 
 Given two context frames `(x_{t-1}, x_t)` and a fixed horizon `k=4`, which

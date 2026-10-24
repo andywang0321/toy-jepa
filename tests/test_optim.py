@@ -41,9 +41,7 @@ def test_adamw_bias_correction_first_step() -> None:
     grads = {"w": jnp.array([2.0])}
     state = adamw_init(params)
 
-    params_next, state_next = adamw_update(
-        params, grads, state, lr=0.1, weight_decay=0.0
-    )
+    params_next, state_next = adamw_update(params, grads, state, lr=0.1, weight_decay=0.0)
 
     assert jnp.allclose(params_next["w"], jnp.array([-0.1]), atol=1e-6)
     assert int(state_next.t) == 1
@@ -59,9 +57,7 @@ def test_adamw_decoupled_weight_decay() -> None:
 
     params_next, _ = adamw_update(params, grads, state, lr=0.1, weight_decay=0.1)
 
-    assert jnp.allclose(
-        params_next["w"], jnp.array([2.0 * (1.0 - 0.1 * 0.1)]), atol=1e-6
-    )
+    assert jnp.allclose(params_next["w"], jnp.array([2.0 * (1.0 - 0.1 * 0.1)]), atol=1e-6)
 
 
 def test_adamw_converges_on_quadratic() -> None:

@@ -130,17 +130,13 @@ _COLLAPSE_NAMES = {
 
 
 def summarize_readouts(
-    readouts: dict[
-        str, tuple[dict[str, float], dict[str, float | int], dict[str, float]]
-    ],
+    readouts: dict[str, tuple[dict[str, float], dict[str, float | int], dict[str, float]]],
 ) -> dict[str, float | int]:
     """Flatten test, validation, and collapse metrics with a feature prefix."""
     summary: dict[str, float | int] = {}
     for name, (test, val, collapse) in readouts.items():
         summary.update({f"{name}_{key}": value for key, value in test.items()})
-        summary.update(
-            {f"{name}_{_COLLAPSE_NAMES[key]}": value for key, value in collapse.items()}
-        )
+        summary.update({f"{name}_{_COLLAPSE_NAMES[key]}": value for key, value in collapse.items()})
         summary[f"{name}_readout_best_val_mse"] = float(val["best_val_mse"])
         summary[f"{name}_readout_best_step"] = int(val["best_step"])
         summary[f"{name}_readout_steps_run"] = int(val["steps_run"])

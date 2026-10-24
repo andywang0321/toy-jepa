@@ -60,12 +60,8 @@ def test_sampling_and_fixed_batches() -> None:
     dataset = _dataset()
     sequence, time = pair_indices(dataset, split=0, k=K)
 
-    sampled_sequence, sampled_time = sample_indices(
-        np.random.default_rng(0), sequence, time, 10
-    )
-    repeat_sequence, repeat_time = sample_indices(
-        np.random.default_rng(0), sequence, time, 10
-    )
+    sampled_sequence, sampled_time = sample_indices(np.random.default_rng(0), sequence, time, 10)
+    repeat_sequence, repeat_time = sample_indices(np.random.default_rng(0), sequence, time, 10)
     assert len(sampled_sequence) == 10
     assert np.array_equal(sampled_sequence, repeat_sequence)
     assert np.array_equal(sampled_time, repeat_time)
@@ -91,12 +87,8 @@ def test_sampling_and_fixed_batches() -> None:
 def test_readout_split_is_deterministic() -> None:
     dataset = _dataset()
 
-    context_a, state_a = readout_split(
-        dataset, np.random.default_rng(0), split=0, num_pairs=30
-    )
-    context_b, state_b = readout_split(
-        dataset, np.random.default_rng(0), split=0, num_pairs=30
-    )
+    context_a, state_a = readout_split(dataset, np.random.default_rng(0), split=0, num_pairs=30)
+    context_b, state_b = readout_split(dataset, np.random.default_rng(0), split=0, num_pairs=30)
 
     assert context_a.shape == (30, 2, 64, 64)
     assert state_a.shape == (30, 8)
@@ -112,9 +104,7 @@ def test_collapse_metrics_match_metric_functions() -> None:
 
     assert metrics["effective_rank"] == pytest.approx(effective_rank(features))
     assert metrics["feature_variance"] == pytest.approx(feature_variance(features))
-    assert metrics["mean_pairwise_cosine"] == pytest.approx(
-        mean_pairwise_cosine(features)
-    )
+    assert metrics["mean_pairwise_cosine"] == pytest.approx(mean_pairwise_cosine(features))
 
 
 def test_summarize_readouts_prefixes_each_feature_set() -> None:

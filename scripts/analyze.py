@@ -57,11 +57,7 @@ def read_csv(path: Path) -> dict[str, float]:
     if not path.exists():
         return {}
     with path.open() as file:
-        return {
-            row["metric"]: float(row["value"])
-            for row in csv.DictReader(file)
-            if row.get("value", "") != ""
-        }
+        return {row["metric"]: float(row["value"]) for row in csv.DictReader(file) if row.get("value", "") != ""}
 
 
 def load_arm(name: str, dirname: str) -> dict[str, float | str] | None:
@@ -203,10 +199,7 @@ def write_report(arms: list[dict], sweeps: list[dict], path: Path) -> None:
             subset = [row for row in sweeps if row["sweep"] == label]
             if subset:
                 best = min(subset, key=lambda row: row["c_t_mse"])
-                lines.append(
-                    f"- Best {label} by c_t MSE: {best['setting']} "
-                    f"({best['c_t_mse']:.4f})"
-                )
+                lines.append(f"- Best {label} by c_t MSE: {best['setting']} ({best['c_t_mse']:.4f})")
     lines += ["", "![arms](comparison.png)", ""]
     if sweeps:
         lines += ["![sweeps](sweeps.png)", ""]
