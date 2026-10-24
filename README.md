@@ -86,7 +86,8 @@ tests/
 
 ## Run
 
-MNIST IDX files go in `~/data/mnist` (the `tiny-worlds` default).
+MNIST IDX files go in `~/data/mnist` (the `tiny-worlds` default). Keep
+`tiny-worlds` as a sibling of `toy-jepa`; the dependency is an editable path.
 
 ```bash
 uv sync
