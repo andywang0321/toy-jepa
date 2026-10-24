@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from tiny_worlds.friction_mnist import generate_dataset as generate_friction_dataset
 
-from ..constants import NUM_SAMPLES, SEED
+from ..constants import MNIST_DIR, NUM_SAMPLES, SEED
 from ..core.types import Float32Array, Int8Array, Int32Array, MovingMNIST, UInt8Array
 
 
@@ -14,7 +14,7 @@ def generate_dataset(
     num_samples: int = NUM_SAMPLES,
 ) -> MovingMNIST:
     """Generate a friction Moving MNIST pool in memory."""
-    return generate_friction_dataset(seed, num_samples)
+    return generate_friction_dataset(seed, num_samples, mnist_dir=MNIST_DIR)
 
 
 def pair_indices(

@@ -33,7 +33,7 @@ the geometry, not the state information. The full report is
 [docs/phase1.md](docs/phase1.md).
 
 The phase 1 results use the original constant-velocity, `T=20` world. The
-current data path now generates the friction world from `tiny-worlds` (`T=100`,
+current data path now generates the friction world from `tiny-worlds` (`T=200`,
 damping, inelastic bounces, stop times) for phase 2; phase 1 artifacts remain
 historical.
 
@@ -86,8 +86,9 @@ tests/
 
 ## Run
 
-MNIST IDX files go in `~/data/mnist` (the `tiny-worlds` default). Keep
-`tiny-worlds` as a sibling of `toy-jepa`; the dependency is an editable path.
+Set `TINY_WORLDS_MNIST_DIR` (or edit `MNIST_DIR` in `constants.py`) to the MNIST
+IDX directory. `tiny-worlds` takes the path explicitly and never vendors MNIST.
+Keep `tiny-worlds` as a sibling of `toy-jepa`; the dependency is an editable path.
 
 ```bash
 uv sync

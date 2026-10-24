@@ -1,5 +1,9 @@
 """Project constants. Edit defaults directly; scripts take no CLI arguments."""
 
+import os
+from pathlib import Path
+
+MNIST_DIR: Path = Path(os.environ.get("TINY_WORLDS_MNIST_DIR", Path.home() / "data" / "mnist"))
 NUM_SAMPLES: int = 10_000
 CANVAS_SIZE: int = 64
 DIGIT_SIZE: int = 28
