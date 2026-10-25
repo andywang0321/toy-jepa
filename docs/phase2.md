@@ -53,7 +53,11 @@ Frozen features from `c_t` and `z_hat`:
 - feature variance, cosine, rank.
 
 The state readout is trained on mixed training `m`/`k`/`FINAL` queries and
-evaluated on held-out `m` and `k`.
+evaluated on held-out `m` and `k`. Results are reported both aggregate and
+per context length `m`.
+
+The final state metric is **position MAE**. Final velocity is zero by
+construction, so it is excluded from R²-style comparisons.
 
 ## Run
 
@@ -61,19 +65,21 @@ evaluated on held-out `m` and `k`.
 bash scripts/run_p2.sh
 ```
 
-This runs the pixel arm and the JEPA arm in parallel on GPUs `0` and `3`, then
-the analyzer. Override with `PIXEL_GPU` and `JEPA_GPU`. Logs go to
-`runs/p2_pixel/train.log` and `runs/p2_jepa/train.log`.
+This runs seeds `0..4` for both arms. Pixel runs its seeds sequentially on GPU
+`0`; JEPA runs its seeds sequentially on GPU `3`. Override with `PIXEL_GPU`,
+`JEPA_GPU`, or `SEEDS`.
 
 ```text
-runs/p2_pixel/
-runs/p2_jepa/
+runs/p2/pixel/seed_0..4/
+runs/p2/jepa/seed_0..4/
+checkpoints/p2/pixel/seed_0..4/params.pkl   # gitignored
+checkpoints/p2/jepa/seed_0..4/params.pkl
 runs/analysis/p2_report.md
 runs/analysis/p2_comparison.png
 ```
 
-The default screen uses 2,000 sequences. For a full run, raise `num_samples`
-in `scripts/p2_pixel.py` and `scripts/p2_jepa.py`.
+Per-seed logs are under each run's `train.log`. Checkpoints are local and
+gitignored.
 
 ## Optimizer
 
@@ -86,4 +92,4 @@ instability at a fixed architecture and budget.
 - future-context targets;
 - EMA/SIGReg;
 - Muon;
-- seed sweep and final-report tables.
+- flow-matching pixel decoder.

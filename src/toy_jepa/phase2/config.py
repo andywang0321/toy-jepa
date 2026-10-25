@@ -22,6 +22,7 @@ PIXEL_HIDDEN = 512
 
 class Config(NamedTuple):
     run_dir: Path
+    checkpoint_dir: Path
     seed: int = 0
     num_samples: int = 10_000
     num_steps: int = 5_000

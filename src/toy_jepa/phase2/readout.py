@@ -116,8 +116,15 @@ def fit_digit_probe(
 ) -> ProbeResult:
     def loss(params: MLPParams, batch: tuple[jax.Array, jax.Array]) -> jax.Array:
         x, y = batch
+        labels = y.astype(jnp.int32)
         logits = apply_mlp(params, x).reshape(-1, 2, 10)
-        return jnp.mean(optax.softmax_cross_entropy_with_integer_labels(logits, y.astype(jnp.int32)))
+        forward = optax.softmax_cross_entropy_with_integer_labels(
+            logits[:, 0], labels[:, 0]
+        ) + optax.softmax_cross_entropy_with_integer_labels(logits[:, 1], labels[:, 1])
+        reverse = optax.softmax_cross_entropy_with_integer_labels(
+            logits[:, 0], labels[:, 1]
+        ) + optax.softmax_cross_entropy_with_integer_labels(logits[:, 1], labels[:, 0])
+        return jnp.mean(jnp.minimum(forward, reverse))
 
     return _fit(
         key,
@@ -172,8 +179,22 @@ def state_metrics(predictions: np.ndarray, targets: np.ndarray) -> dict[str, flo
 
 def digit_accuracy(logits: np.ndarray, labels: np.ndarray) -> float:
     predictions = logits.reshape(-1, 2, 10).argmax(axis=-1)
-    return float(np.mean(predictions == labels))
+    forward = (predictions[:, 0] == labels[:, 0]) & (predictions[:, 1] == labels[:, 1])
+    reverse = (predictions[:, 0] == labels[:, 1]) & (predictions[:, 1] == labels[:, 0])
+    return float(np.mean(forward | reverse))
 
 
-def bounce_accuracy(logits: np.ndarray, labels: np.ndarray) -> float:
-    return float(np.mean((logits[:, 0] > 0.0) == (labels > 0.5)))
+def bounce_metrics(logits: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+    predictions = logits[:, 0] > 0.0
+    positives = labels > 0.5
+    accuracy = float(np.mean(predictions == positives))
+    positive_rate = float(np.mean(positives))
+    majority = max(positive_rate, 1.0 - positive_rate)
+    tpr = float(np.mean(predictions[positives])) if np.any(positives) else float("nan")
+    tnr = float(np.mean(~predictions[~positives])) if np.any(~positives) else float("nan")
+    return {
+        "accuracy": accuracy,
+        "positive_rate": positive_rate,
+        "majority": majority,
+        "balanced_accuracy": 0.5 * (tpr + tnr),
+    }

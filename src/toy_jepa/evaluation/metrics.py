@@ -61,13 +61,21 @@ def state_readout_metrics(
 
     residual = np.sum(error**2, axis=0)
     total = np.sum((target - target.mean(axis=0, keepdims=True)) ** 2, axis=0)
-    r2 = 1.0 - residual / np.maximum(total, 1e-12)
+    valid = total > 1e-12
+    scores = np.full(target.shape[1], np.nan)
+    scores[valid] = 1.0 - residual[valid] / total[valid]
+
+    def mean_score(slice_: slice) -> float:
+        values = scores[slice_]
+        return float(np.nanmean(values)) if np.any(np.isfinite(values)) else float("nan")
 
     return {
         "state_mse": float(np.mean(error**2)),
         "position_mae": float(np.mean(np.abs(error[:, :4])) * position_scale),
         "velocity_mae": float(np.mean(np.abs(error[:, 4:])) * velocity_scale),
-        "r2": float(np.mean(r2)),
+        "r2": mean_score(slice(None)),
+        "position_r2": mean_score(slice(0, 4)),
+        "velocity_r2": mean_score(slice(4, 8)),
     }
 
 

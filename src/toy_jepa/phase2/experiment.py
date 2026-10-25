@@ -15,7 +15,9 @@ from ..data.dataset import generate_dataset
 from ..evaluation.metrics import effective_rank, feature_variance, mean_pairwise_cosine
 from ..models.mlp import apply_mlp
 from .config import EMBED_DIM, FINAL_PROB, K_TEST, K_TRAIN, M_TEST, M_TRAIN, Config
+from .checkpoint import save_params
 from .data import WindowBatch, sample_batch
+from .features import bounce_features, digit_features, state_features
 from .models import (
     JEPAParams,
     PixelParams,
@@ -28,7 +30,7 @@ from .models import (
 )
 from .optax_train import TrainState, make_optimizer, train_step
 from .readout import (
-    bounce_accuracy,
+    bounce_metrics,
     digit_accuracy,
     fit_bounce_probe,
     fit_digit_probe,
@@ -46,75 +48,6 @@ def _make_model(objective: str, key: jax.Array) -> tuple[Params, Callable[..., j
     if objective == "jepa":
         return init_jepa(key), jepa_loss
     raise ValueError(f"unknown objective {objective!r}")
-
-
-def _features(apply: Apply, params: Params, batch: WindowBatch) -> tuple[np.ndarray, np.ndarray]:
-    c_t, z_hat = apply(params, batch)
-    return np.asarray(c_t), np.asarray(z_hat)
-
-
-def _state_features(
-    apply: Apply,
-    params: Params,
-    dataset: MovingMNIST,
-    split: int,
-    count: int,
-    *,
-    m_values: tuple[int, ...],
-    k_values: tuple[int, ...],
-    final_prob: float,
-    seed: int,
-) -> dict[str, np.ndarray]:
-    rng = np.random.default_rng(seed)
-    batch = sample_batch(
-        rng,
-        dataset,
-        split,
-        count,
-        m_values=m_values,
-        k_values=k_values,
-        final_prob=final_prob,
-    )
-    c_t, z_hat = _features(apply, params, batch)
-    query = np.asarray(batch.query)
-    return {
-        "c_t": np.concatenate([c_t, query], axis=-1),
-        "z_hat": np.concatenate([z_hat, query], axis=-1),
-        "target": np.asarray(batch.target_state),
-    }
-
-
-def _digit_features(
-    apply: Apply,
-    params: Params,
-    dataset: MovingMNIST,
-    split: int,
-    count: int,
-    seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    rng = np.random.default_rng(seed)
-    batch = sample_batch(rng, dataset, split, count, final_prob=0.5)
-    c_t, z_hat = _features(apply, params, batch)
-    return c_t, z_hat, np.asarray(batch.digit_label)
-
-
-def _bounce_features(
-    apply: Apply,
-    params: Params,
-    dataset: MovingMNIST,
-    split: int,
-    count: int,
-    seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    rng = np.random.default_rng(seed)
-    batch = sample_batch(rng, dataset, split, count, final_prob=0.5)
-    c_t, z_hat = _features(apply, params, batch)
-    query = np.asarray(batch.query)
-    return (
-        np.concatenate([c_t, query], axis=-1),
-        np.concatenate([z_hat, query], axis=-1),
-        np.asarray(batch.bounce),
-    )
 
 
 def _train_model(
@@ -173,7 +106,7 @@ def _probe_rows(
     key: jax.Array,
 ) -> dict[str, float]:
     keys = jax.random.split(key, 6)
-    train = _state_features(
+    train = state_features(
         apply,
         params,
         dataset,
@@ -184,7 +117,7 @@ def _probe_rows(
         final_prob=FINAL_PROB,
         seed=config.seed + 1,
     )
-    val = _state_features(
+    val = state_features(
         apply,
         params,
         dataset,
@@ -198,7 +131,7 @@ def _probe_rows(
     test_by_query: dict[str, dict[str, np.ndarray]] = {}
     for index, k in enumerate((*K_TEST, -1)):
         tag = "final" if k < 0 else f"k{k}"
-        test_by_query[tag] = _state_features(
+        test_by_query[tag] = state_features(
             apply,
             params,
             dataset,
@@ -225,13 +158,17 @@ def _probe_rows(
         )
         for tag, test in test_by_query.items():
             predictions = np.asarray(apply_mlp_probe(result, test[name]))
-            metrics = state_metrics(predictions, test["target"])
-            for metric, value in metrics.items():
+            for metric, value in state_metrics(predictions, test["target"]).items():
                 rows[f"{name}_state_{tag}_{metric}"] = value
+            for m_value in M_TEST:
+                subset = test["m"] == m_value
+                if np.any(subset):
+                    for metric, value in state_metrics(predictions[subset], test["target"][subset]).items():
+                        rows[f"{name}_state_{tag}_m{m_value}_{metric}"] = value
 
-    digit_train = _digit_features(apply, params, dataset, 0, config.readout_pairs, config.seed + 20)
-    digit_val = _digit_features(apply, params, dataset, 1, config.readout_pairs // 2, config.seed + 21)
-    digit_test = _digit_features(apply, params, dataset, 2, config.readout_pairs // 2, config.seed + 22)
+    digit_train = digit_features(apply, params, dataset, 0, config.readout_pairs, config.seed + 20)
+    digit_val = digit_features(apply, params, dataset, 1, config.readout_pairs // 2, config.seed + 21)
+    digit_test = digit_features(apply, params, dataset, 2, config.readout_pairs // 2, config.seed + 22)
     for name, index in (("c_t", 0), ("z_hat", 1)):
         result = fit_digit_probe(
             keys[2 + index],
@@ -248,9 +185,9 @@ def _probe_rows(
             np.asarray(apply_mlp_probe(result, digit_test[index])), digit_test[2]
         )
 
-    bounce_train = _bounce_features(apply, params, dataset, 0, config.readout_pairs, config.seed + 30)
-    bounce_val = _bounce_features(apply, params, dataset, 1, config.readout_pairs // 2, config.seed + 31)
-    bounce_test = _bounce_features(apply, params, dataset, 2, config.readout_pairs // 2, config.seed + 32)
+    bounce_train = bounce_features(apply, params, dataset, 0, config.readout_pairs, config.seed + 30)
+    bounce_val = bounce_features(apply, params, dataset, 1, config.readout_pairs // 2, config.seed + 31)
+    bounce_test = bounce_features(apply, params, dataset, 2, config.readout_pairs // 2, config.seed + 32)
     for name, index in (("c_t", 0), ("z_hat", 1)):
         result = fit_bounce_probe(
             keys[4 + index],
@@ -263,9 +200,10 @@ def _probe_rows(
             learning_rate=config.readout_lr,
             seed=config.seed,
         )
-        rows[f"{name}_bounce_accuracy"] = bounce_accuracy(
+        for metric, value in bounce_metrics(
             np.asarray(apply_mlp_probe(result, bounce_test[index])), bounce_test[2]
-        )
+        ).items():
+            rows[f"{name}_bounce_{metric}"] = value
 
     test_features = test_by_query["final"]
     for name in ("c_t", "z_hat"):
@@ -284,6 +222,7 @@ def run(objective: str, config: Config) -> None:
     config.run_dir.mkdir(parents=True, exist_ok=True)
     dataset = generate_dataset(config.seed, config.num_samples)
     params, apply, history = _train_model(config, objective, dataset, jax.random.key(config.seed))
+    save_params(params, config.checkpoint_dir / "params.pkl")
     probes = _probe_rows(config, apply, params, dataset, jax.random.key(config.seed + 100))
 
     payload = {key: value for key, value in config._asdict().items() if key != "run_dir"}

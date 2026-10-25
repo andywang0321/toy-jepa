@@ -54,6 +54,19 @@ def test_state_readout_metrics_perfect_prediction() -> None:
     assert metrics["r2"] == pytest.approx(1.0)
 
 
+def test_state_readout_metrics_ignore_zero_variance_velocity() -> None:
+    rng = np.random.default_rng(0)
+    targets = rng.normal(size=(20, 8)).astype(np.float32)
+    targets[:, 4:] = 0.0
+    predictions = targets.copy()
+    predictions[:, :4] += 1.0
+
+    metrics = state_readout_metrics(predictions, targets)
+
+    assert np.isnan(metrics["velocity_r2"])
+    assert np.isfinite(metrics["position_r2"])
+
+
 def test_state_readout_metrics_use_pixel_units() -> None:
     rng = np.random.default_rng(0)
     targets = rng.normal(size=(20, 8)).astype(np.float32)

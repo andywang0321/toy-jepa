@@ -1,4 +1,4 @@
-"""Compare phase-2 runs and write a small report."""
+"""Aggregate phase-2 seed runs and write a compact report."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNS = {"pixel": ROOT / "runs" / "p2_pixel", "jepa": ROOT / "runs" / "p2_jepa"}
+RUNS = {"pixel": ROOT / "runs" / "p2" / "pixel", "jepa": ROOT / "runs" / "p2" / "jepa"}
+OLD_RUNS = {"pixel": ROOT / "runs" / "p2_pixel", "jepa": ROOT / "runs" / "p2_jepa"}
 OUT = ROOT / "runs" / "analysis"
 
 
@@ -21,60 +22,112 @@ def _read(path: Path) -> dict[str, float]:
         return {row["metric"]: float(row["value"]) for row in csv.DictReader(file)}
 
 
-def _probes(runs: dict[str, dict[str, float]]) -> list[dict[str, float | str]]:
-    rows = []
-    for objective, probes in runs.items():
-        for metric, value in probes.items():
-            rows.append({"objective": objective, "metric": metric, "value": value})
-    return rows
+def _seed_runs(name: str) -> list[Path]:
+    paths = sorted(RUNS[name].glob("seed_*/probes.csv"))
+    if paths:
+        return paths
+    fallback = OLD_RUNS[name] / "probes.csv"
+    return [fallback] if fallback.exists() else []
 
 
-def main() -> None:
-    runs = {name: _read(path / "probes.csv") for name, path in RUNS.items() if (path / "probes.csv").exists()}
-    if not runs:
-        raise SystemExit("no phase-2 probe files found")
-    OUT.mkdir(parents=True, exist_ok=True)
-    rows = _probes(runs)
+def _aggregate(paths: list[Path]) -> dict[str, tuple[float, float, int]]:
+    values: dict[str, list[float]] = {}
+    for path in paths:
+        for metric, value in _read(path).items():
+            values.setdefault(metric, []).append(value)
+    return {metric: (float(np.mean(vals)), float(np.std(vals)), len(vals)) for metric, vals in values.items()}
 
+
+def _write_summary(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
     with (OUT / "p2_summary.csv").open("w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=("objective", "metric", "value"))
-        writer.writeheader()
-        writer.writerows(rows)
+        writer = csv.writer(file)
+        writer.writerow(("objective", "metric", "mean", "std", "n"))
+        for objective, metrics in runs.items():
+            for metric, (mean, std, n) in metrics.items():
+                writer.writerow((objective, metric, mean, std, n))
 
-    metrics = sorted(runs["pixel"]) if "pixel" in runs else sorted(next(iter(runs.values())))
-    lines = ["# Phase 2", "", "| metric | pixel | JEPA |", "|---|---:|---:|"]
+
+def _report(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
+    metrics = (
+        "c_t_state_k3_position_mae",
+        "c_t_state_k24_position_mae",
+        "c_t_state_k48_position_mae",
+        "c_t_state_final_position_mae",
+        "z_hat_state_final_position_mae",
+        "c_t_digit_accuracy",
+        "z_hat_digit_accuracy",
+        "c_t_bounce_accuracy",
+        "c_t_bounce_balanced_accuracy",
+        "c_t_variance",
+        "c_t_cosine",
+        "c_t_rank",
+    )
+    lines = ["# Phase 2 seeds", "", "| metric | pixel | JEPA |", "|---|---:|---:|"]
     for metric in metrics:
-        values = [runs.get(name, {}).get(metric) for name in ("pixel", "jepa")]
-        cells = ["" if value is None else f"{value:.5f}" for value in values]
+        cells = []
+        for objective in ("pixel", "jepa"):
+            value = runs.get(objective, {}).get(metric)
+            cells.append("" if value is None else f"{value[0]:.4f} ± {value[1]:.4f} (n={value[2]})")
         lines.append(f"| {metric} | {cells[0]} | {cells[1]} |")
-    (OUT / "p2_report.md").write_text("\n".join(lines) + "\n")
+    lines += [
+        "",
+        "Final position MAE by context length:",
+        "",
+        "| m | pixel c_t | JEPA c_t | pixel z_hat | JEPA z_hat |",
+        "|---:|---:|---:|---:|---:|",
+    ]
+    for m in (3, 6, 12):
+        cells = []
+        for objective in ("pixel", "jepa"):
+            for feature in ("c_t", "z_hat"):
+                value = runs.get(objective, {}).get(f"{feature}_state_final_m{m}_position_mae")
+                cells.append("" if value is None else f"{value[0]:.3f} ± {value[1]:.3f}")
+        lines.append(f"| {m} | {cells[0]} | {cells[1]} | {cells[2]} | {cells[3]} |")
+    lines += ["", "![comparison](p2_comparison.png)", ""]
+    (OUT / "p2_report.md").write_text("\n".join(lines))
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    for name in ("pixel", "jepa"):
-        for feature in ("c_t", "z_hat"):
-            values = []
-            for k in (3, 6, 12, 24, 48):
-                values.append(runs.get(name, {}).get(f"{feature}_state_k{k}_position_mae", np.nan))
-            axes[0].plot((3, 6, 12, 24, 48), values, marker="o", label=f"{name}/{feature}")
+
+def _plot(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    ks = (3, 6, 12, 24, 48)
+    for objective, color in (("pixel", "tab:orange"), ("jepa", "tab:blue")):
+        for feature, style in (("c_t", "-"), ("z_hat", "--")):
+            means = [runs.get(objective, {}).get(f"{feature}_state_k{k}_position_mae", (np.nan, 0, 0))[0] for k in ks]
+            stds = [runs.get(objective, {}).get(f"{feature}_state_k{k}_position_mae", (np.nan, 0, 0))[1] for k in ks]
+            axes[0].errorbar(ks, means, yerr=stds, fmt=f"o{style}", color=color, label=f"{objective}/{feature}")
     axes[0].set_xscale("log")
     axes[0].set_xlabel("k")
     axes[0].set_ylabel("position MAE")
     axes[0].set_title("held-out horizon")
     axes[0].legend(fontsize=7)
-    for name in ("pixel", "jepa"):
-        for feature in ("c_t", "z_hat"):
-            axes[1].scatter(
-                runs.get(name, {}).get(f"{feature}_digit_accuracy", np.nan),
-                runs.get(name, {}).get(f"{feature}_state_final_position_mae", np.nan),
-                label=f"{name}/{feature}",
-            )
-    axes[1].set_xlabel("digit accuracy")
+
+    labels = ("c_t", "z_hat")
+    x = np.arange(2)
+    for offset, objective, color in ((-0.15, "pixel", "tab:orange"), (0.15, "jepa", "tab:blue")):
+        means = [
+            runs.get(objective, {}).get(f"{feature}_state_final_position_mae", (np.nan, 0, 0))[0] for feature in labels
+        ]
+        stds = [
+            runs.get(objective, {}).get(f"{feature}_state_final_position_mae", (np.nan, 0, 0))[1] for feature in labels
+        ]
+        axes[1].bar(x + offset, means, yerr=stds, width=0.3, color=color, label=objective, capsize=3)
+    axes[1].set_xticks(x, labels)
     axes[1].set_ylabel("final position MAE")
-    axes[1].set_title("multi-purpose probes")
+    axes[1].set_title("terminal prediction")
     axes[1].legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(OUT / "p2_comparison.png", dpi=150)
     plt.close(fig)
+
+
+def main() -> None:
+    runs = {name: _aggregate(paths) for name in RUNS if (paths := _seed_runs(name))}
+    if not runs:
+        raise SystemExit("no phase-2 probe files found")
+    OUT.mkdir(parents=True, exist_ok=True)
+    _write_summary(runs)
+    _report(runs)
+    _plot(runs)
     print(f"wrote {OUT}")
 
 
