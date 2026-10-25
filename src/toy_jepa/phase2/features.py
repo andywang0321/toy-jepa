@@ -9,12 +9,11 @@ import numpy as np
 from ..core.types import MovingMNIST
 from .data import WindowBatch, sample_batch
 
-Apply = Callable[[Any, WindowBatch], tuple[Any, Any]]
+Apply = Callable[[Any, WindowBatch], Any]
 
 
-def features(apply: Apply, params: Any, batch: WindowBatch) -> tuple[np.ndarray, np.ndarray]:
-    c_t, z_hat = apply(params, batch)
-    return np.asarray(c_t), np.asarray(z_hat)
+def c_t_features(apply: Apply, params: Any, batch: WindowBatch) -> np.ndarray:
+    return np.asarray(apply(params, batch))
 
 
 def state_features(
@@ -39,11 +38,10 @@ def state_features(
         k_values=k_values,
         final_prob=final_prob,
     )
-    c_t, z_hat = features(apply, params, batch)
+    c_t = c_t_features(apply, params, batch)
     query = np.asarray(batch.query)
     return {
         "c_t": np.concatenate([c_t, query], axis=-1),
-        "z_hat": np.concatenate([z_hat, query], axis=-1),
         "target": np.asarray(batch.target_state),
         "m": np.asarray(batch.mask.sum(axis=1)),
     }
@@ -56,11 +54,10 @@ def digit_features(
     split: int,
     count: int,
     seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     batch = sample_batch(rng, dataset, split, count, final_prob=0.5)
-    c_t, z_hat = features(apply, params, batch)
-    return c_t, z_hat, np.asarray(batch.digit_label)
+    return c_t_features(apply, params, batch), np.asarray(batch.digit_label)
 
 
 def bounce_features(
@@ -70,13 +67,8 @@ def bounce_features(
     split: int,
     count: int,
     seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     batch = sample_batch(rng, dataset, split, count, final_prob=0.5)
-    c_t, z_hat = features(apply, params, batch)
-    query = np.asarray(batch.query)
-    return (
-        np.concatenate([c_t, query], axis=-1),
-        np.concatenate([z_hat, query], axis=-1),
-        np.asarray(batch.bounce),
-    )
+    c_t = c_t_features(apply, params, batch)
+    return np.concatenate([c_t, np.asarray(batch.query)], axis=-1), np.asarray(batch.bounce)

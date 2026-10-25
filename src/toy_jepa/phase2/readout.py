@@ -102,6 +102,24 @@ def fit_state_probe(
     )
 
 
+def pair_index(labels: jax.Array) -> jax.Array:
+    """Map unordered digit pairs to 55 class ids."""
+    low = jnp.minimum(labels[:, 0], labels[:, 1]).astype(jnp.int32)
+    high = jnp.maximum(labels[:, 0], labels[:, 1]).astype(jnp.int32)
+    return low * (19 - low) // 2 + high
+
+
+def _pair_classes() -> np.ndarray:
+    rows = []
+    for low in range(10):
+        for high in range(low, 10):
+            rows.append((low, high))
+    return np.asarray(rows)
+
+
+PAIR_CLASSES = _pair_classes()
+
+
 def fit_digit_probe(
     key: jax.Array,
     train_x: np.ndarray,
@@ -116,15 +134,10 @@ def fit_digit_probe(
 ) -> ProbeResult:
     def loss(params: MLPParams, batch: tuple[jax.Array, jax.Array]) -> jax.Array:
         x, y = batch
-        labels = y.astype(jnp.int32)
-        logits = apply_mlp(params, x).reshape(-1, 2, 10)
-        forward = optax.softmax_cross_entropy_with_integer_labels(
-            logits[:, 0], labels[:, 0]
-        ) + optax.softmax_cross_entropy_with_integer_labels(logits[:, 1], labels[:, 1])
-        reverse = optax.softmax_cross_entropy_with_integer_labels(
-            logits[:, 0], labels[:, 1]
-        ) + optax.softmax_cross_entropy_with_integer_labels(logits[:, 1], labels[:, 0])
-        return jnp.mean(jnp.minimum(forward, reverse))
+        logits = apply_mlp(params, x)
+        return jnp.mean(
+            optax.softmax_cross_entropy_with_integer_labels(logits, pair_index(y))
+        )
 
     return _fit(
         key,
@@ -133,7 +146,7 @@ def fit_digit_probe(
         val_x,
         val_y,
         loss,
-        output_dim=20,
+        output_dim=55,
         num_steps=num_steps,
         batch_size=batch_size,
         learning_rate=learning_rate,
@@ -178,10 +191,8 @@ def state_metrics(predictions: np.ndarray, targets: np.ndarray) -> dict[str, flo
 
 
 def digit_accuracy(logits: np.ndarray, labels: np.ndarray) -> float:
-    predictions = logits.reshape(-1, 2, 10).argmax(axis=-1)
-    forward = (predictions[:, 0] == labels[:, 0]) & (predictions[:, 1] == labels[:, 1])
-    reverse = (predictions[:, 0] == labels[:, 1]) & (predictions[:, 1] == labels[:, 0])
-    return float(np.mean(forward | reverse))
+    predictions = logits.argmax(axis=-1)
+    return float(np.mean(predictions == np.asarray(pair_index(jnp.asarray(labels)))))
 
 
 def bounce_metrics(logits: np.ndarray, labels: np.ndarray) -> dict[str, float]:

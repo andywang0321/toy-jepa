@@ -8,8 +8,11 @@ import numpy as np
 
 from toy_jepa.phase2.data import WindowBatch
 from toy_jepa.phase2.models import (
+    apply_flow,
     apply_jepa,
     apply_pixel,
+    flow_loss,
+    init_flow,
     init_jepa,
     init_pixel,
     jepa_loss,
@@ -52,4 +55,16 @@ def test_jepa_forward_and_grad() -> None:
     assert z_hat.shape == (2, 32)
     assert np.isfinite(float(jepa_loss(params, _batch())))
     grads = jax.grad(jepa_loss)(params, _batch())
+    assert np.isfinite(float(jax.tree.reduce(lambda a, b: a + jnp.sum(b), grads, 0.0)))
+
+
+def test_flow_forward_and_grad() -> None:
+    params = init_flow(jax.random.key(2), embed_dim=32, heads=4, layers=1, mlp_ratio=2, pixel_hidden=32)
+    c_t, x_t, residual = apply_flow(params, _batch(), jax.random.key(3))
+
+    assert c_t.shape == (2, 32)
+    assert x_t.shape == (2, 64, 64)
+    assert residual.shape == (2, 64, 64)
+    assert np.isfinite(float(flow_loss(params, _batch(), jax.random.key(3))))
+    grads = jax.grad(flow_loss, argnums=0)(params, _batch(), jax.random.key(3))
     assert np.isfinite(float(jax.tree.reduce(lambda a, b: a + jnp.sum(b), grads, 0.0)))

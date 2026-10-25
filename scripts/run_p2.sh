@@ -51,4 +51,5 @@ if ((pixel_status != 0 || jepa_status != 0)); then
     exit 1
 fi
 
+run_arm pixel_fm "$PIXEL_GPU" p2_pixel_fm.py
 uv run python scripts/p2_analyze.py

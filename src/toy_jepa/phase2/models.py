@@ -144,3 +144,83 @@ def jepa_loss(params: JEPAParams, batch: WindowBatch) -> jax.Array:
     _, z_hat = apply_jepa(params, batch)
     z_target = apply_cnn(params.context.encoder, batch.target_frame[..., None])
     return jnp.mean((z_hat - jax.lax.stop_gradient(z_target)) ** 2)
+
+
+class FlowParams(NamedTuple):
+    context: ContextParams
+    velocity: MLPParams
+
+
+def init_flow(
+    key: jax.Array,
+    *,
+    embed_dim: int = EMBED_DIM,
+    heads: int = HEADS,
+    layers: int = LAYERS,
+    mlp_ratio: int = MLP_RATIO,
+    pixel_hidden: int = PIXEL_HIDDEN,
+) -> FlowParams:
+    context_key, velocity_key = jax.random.split(key)
+    return FlowParams(
+        context=init_context(
+            context_key,
+            embed_dim=embed_dim,
+            heads=heads,
+            layers=layers,
+            mlp_ratio=mlp_ratio,
+        ),
+        velocity=init_mlp(velocity_key, [2 * embed_dim + 1, pixel_hidden, 64 * 64]),
+    )
+
+
+def flow_context(
+    params: FlowParams,
+    batch: WindowBatch,
+    *,
+    heads: int = HEADS,
+) -> jax.Array:
+    return apply_context(params.context, batch, heads=heads)[0]
+
+
+def apply_flow(
+    params: FlowParams,
+    batch: WindowBatch,
+    key: jax.Array,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Return ``(c_t, x_t, velocity residual)`` for flow matching."""
+    c_t, query = apply_context(params.context, batch)
+    noise_key, time_key = jax.random.split(key)
+    noise = jax.random.normal(noise_key, batch.target_frame.shape)
+    time = jax.random.uniform(time_key, (batch.target_frame.shape[0], 1))
+    time_map = time.reshape(-1, 1, 1)
+    x_t = (1.0 - time_map) * noise + time_map * batch.target_frame
+    velocity = apply_mlp(
+        params.velocity,
+        jnp.concatenate([c_t, query, time], axis=-1),
+    ).reshape(-1, 64, 64)
+    return c_t, x_t, velocity - (batch.target_frame - noise)
+
+
+def flow_loss(params: FlowParams, batch: WindowBatch, key: jax.Array) -> jax.Array:
+    _, _, residual = apply_flow(params, batch, key)
+    return jnp.mean(residual**2)
+
+
+def sample_flow(
+    params: FlowParams,
+    batch: WindowBatch,
+    key: jax.Array,
+    *,
+    steps: int = 10,
+) -> jax.Array:
+    """Euler sample a future frame from the flow model."""
+    c_t, query = apply_context(params.context, batch)
+    frame = jax.random.normal(key, batch.target_frame.shape)
+    for index in range(steps):
+        time = jnp.full((batch.target_frame.shape[0], 1), index / steps)
+        velocity = apply_mlp(
+            params.velocity,
+            jnp.concatenate([c_t, query, time], axis=-1),
+        ).reshape(-1, 64, 64)
+        frame = frame + velocity / steps
+    return jnp.clip(frame, 0.0, 1.0)

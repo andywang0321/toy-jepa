@@ -1,18 +1,16 @@
-"""Tests for permutation-invariant digit accuracy."""
+"""Tests for unordered digit-pair probes."""
 
 from __future__ import annotations
 
+import jax.numpy as jnp
 import numpy as np
 
-from toy_jepa.phase2.readout import digit_accuracy
+from toy_jepa.phase2.readout import digit_accuracy, pair_index
 
 
 def test_digit_accuracy_accepts_swapped_slots() -> None:
-    logits = np.zeros((2, 20), dtype=np.float32)
-    logits[0].reshape(2, 10)[0, 1] = 10.0
-    logits[0].reshape(2, 10)[1, 2] = 10.0
-    logits[1].reshape(2, 10)[0, 3] = 10.0
-    logits[1].reshape(2, 10)[1, 4] = 10.0
     labels = np.asarray([[2, 1], [3, 4]], dtype=np.int32)
+    logits = np.zeros((2, 55), dtype=np.float32)
+    logits[np.arange(2), np.asarray(pair_index(jnp.asarray(labels)))] = 10.0
 
     assert digit_accuracy(logits, labels) == 1.0

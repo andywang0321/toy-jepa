@@ -19,16 +19,20 @@ from .checkpoint import save_params
 from .data import WindowBatch, sample_batch
 from .features import bounce_features, digit_features, state_features
 from .models import (
+    FlowParams,
     JEPAParams,
     PixelParams,
+    apply_context,
     apply_jepa,
-    apply_pixel,
+    flow_context,
+    flow_loss,
+    init_flow,
     init_jepa,
     init_pixel,
     jepa_loss,
     pixel_loss,
 )
-from .optax_train import TrainState, make_optimizer, train_step
+from .optax_train import TrainState, make_optimizer, train_step, train_step_with_key
 from .readout import (
     bounce_metrics,
     digit_accuracy,
@@ -38,13 +42,15 @@ from .readout import (
     state_metrics,
 )
 
-Params = PixelParams | JEPAParams
-Apply = Callable[[Any, WindowBatch], tuple[jax.Array, jax.Array]]
+Params = PixelParams | JEPAParams | FlowParams
+Apply = Callable[[Any, WindowBatch], Any]
 
 
 def _make_model(objective: str, key: jax.Array) -> tuple[Params, Callable[..., jax.Array]]:
     if objective == "pixel":
         return init_pixel(key), pixel_loss
+    if objective == "pixel_fm":
+        return init_flow(key), flow_loss
     if objective == "jepa":
         return init_jepa(key), jepa_loss
     raise ValueError(f"unknown objective {objective!r}")
@@ -66,19 +72,40 @@ def _train_model(
     val_batches = [
         sample_batch(rng, dataset, 1, config.batch_size, final_prob=FINAL_PROB) for _ in range(config.eval_batches)
     ]
+    is_flow = objective == "pixel_fm"
+    train_key = jax.random.key(config.seed + 7)
+    val_keys = tuple(jax.random.split(train_key, len(val_batches)))
 
-    @jax.jit
-    def step(state: TrainState[Params], batch: WindowBatch):
-        return train_step(state, batch, loss_fn, optimizer)
+    if is_flow:
 
-    @jax.jit
-    def validation(params: Params) -> jax.Array:
-        return jnp.mean(jnp.stack([loss_fn(params, batch) for batch in val_batches]))
+        @jax.jit
+        def step(state: TrainState[Params], batch: WindowBatch, key: jax.Array):
+            return train_step_with_key(state, batch, key, loss_fn, optimizer)
+
+        @jax.jit
+        def validation(params: Params) -> jax.Array:
+            return jnp.mean(
+                jnp.stack([loss_fn(params, batch, key) for batch, key in zip(val_batches, val_keys)])
+            )
+
+    else:
+
+        @jax.jit
+        def step(state: TrainState[Params], batch: WindowBatch):
+            return train_step(state, batch, loss_fn, optimizer)
+
+        @jax.jit
+        def validation(params: Params) -> jax.Array:
+            return jnp.mean(jnp.stack([loss_fn(params, batch) for batch in val_batches]))
 
     history: list[dict[str, float]] = []
     for step_number in range(1, config.num_steps + 1):
         batch = sample_batch(rng, dataset, 0, config.batch_size)
-        state, loss = step(state, batch)
+        if is_flow:
+            train_key, step_key = jax.random.split(train_key)
+            state, loss = step(state, batch, step_key)
+        else:
+            state, loss = step(state, batch)
         if step_number % config.eval_every == 0 or step_number == config.num_steps:
             row = {
                 "step": float(step_number),
@@ -88,13 +115,21 @@ def _train_model(
             history.append(row)
             print(f"{objective} {step_number:5d} train {row['train_loss']:.5f} val {row['val_loss']:.5f}")
 
+    def pixel_context(params: Params, batch: WindowBatch) -> Any:
+        return apply_context(cast(PixelParams, params).context, batch)[0]
+
+    def flow_c_t(params: Params, batch: WindowBatch) -> Any:
+        return flow_context(cast(FlowParams, params), batch)
+
+    def jepa_context(params: Params, batch: WindowBatch) -> Any:
+        return apply_jepa(cast(JEPAParams, params), batch)[0]
+
     if objective == "pixel":
-
-        def apply(params: Params, batch: WindowBatch) -> tuple[jax.Array, jax.Array]:
-            return apply_pixel(cast(PixelParams, params), batch)[:2]
-
+        apply: Apply = pixel_context
+    elif objective == "pixel_fm":
+        apply = flow_c_t
     else:
-        apply = apply_jepa
+        apply = jepa_context
     return state.params, apply, history
 
 
@@ -105,7 +140,7 @@ def _probe_rows(
     dataset: MovingMNIST,
     key: jax.Array,
 ) -> dict[str, float]:
-    keys = jax.random.split(key, 6)
+    keys = jax.random.split(key, 3)
     train = state_features(
         apply,
         params,
@@ -144,73 +179,68 @@ def _probe_rows(
         )
 
     rows: dict[str, float] = {}
-    for name in ("c_t", "z_hat"):
-        result = fit_state_probe(
-            keys[0 if name == "c_t" else 1],
-            train[name],
-            train["target"],
-            val[name],
-            val["target"],
-            num_steps=config.readout_steps,
-            batch_size=config.readout_batch_size,
-            learning_rate=config.readout_lr,
-            seed=config.seed,
-        )
-        for tag, test in test_by_query.items():
-            predictions = np.asarray(apply_mlp_probe(result, test[name]))
-            for metric, value in state_metrics(predictions, test["target"]).items():
-                rows[f"{name}_state_{tag}_{metric}"] = value
-            for m_value in M_TEST:
-                subset = test["m"] == m_value
-                if np.any(subset):
-                    for metric, value in state_metrics(predictions[subset], test["target"][subset]).items():
-                        rows[f"{name}_state_{tag}_m{m_value}_{metric}"] = value
+    result = fit_state_probe(
+        keys[0],
+        train["c_t"],
+        train["target"],
+        val["c_t"],
+        val["target"],
+        num_steps=config.readout_steps,
+        batch_size=config.readout_batch_size,
+        learning_rate=config.readout_lr,
+        seed=config.seed,
+    )
+    for tag, test in test_by_query.items():
+        predictions = np.asarray(apply_mlp_probe(result, test["c_t"]))
+        for metric, value in state_metrics(predictions, test["target"]).items():
+            rows[f"c_t_state_{tag}_{metric}"] = value
+        for m_value in M_TEST:
+            subset = test["m"] == m_value
+            if np.any(subset):
+                for metric, value in state_metrics(predictions[subset], test["target"][subset]).items():
+                    rows[f"c_t_state_{tag}_m{m_value}_{metric}"] = value
 
     digit_train = digit_features(apply, params, dataset, 0, config.readout_pairs, config.seed + 20)
     digit_val = digit_features(apply, params, dataset, 1, config.readout_pairs // 2, config.seed + 21)
     digit_test = digit_features(apply, params, dataset, 2, config.readout_pairs // 2, config.seed + 22)
-    for name, index in (("c_t", 0), ("z_hat", 1)):
-        result = fit_digit_probe(
-            keys[2 + index],
-            digit_train[index],
-            digit_train[2],
-            digit_val[index],
-            digit_val[2],
-            num_steps=config.readout_steps,
-            batch_size=config.readout_batch_size,
-            learning_rate=config.readout_lr,
-            seed=config.seed,
-        )
-        rows[f"{name}_digit_accuracy"] = digit_accuracy(
-            np.asarray(apply_mlp_probe(result, digit_test[index])), digit_test[2]
-        )
+    result = fit_digit_probe(
+        keys[1],
+        digit_train[0],
+        digit_train[1],
+        digit_val[0],
+        digit_val[1],
+        num_steps=config.readout_steps,
+        batch_size=config.readout_batch_size,
+        learning_rate=config.readout_lr,
+        seed=config.seed,
+    )
+    rows["c_t_digit_accuracy"] = digit_accuracy(
+        np.asarray(apply_mlp_probe(result, digit_test[0])), digit_test[1]
+    )
 
     bounce_train = bounce_features(apply, params, dataset, 0, config.readout_pairs, config.seed + 30)
     bounce_val = bounce_features(apply, params, dataset, 1, config.readout_pairs // 2, config.seed + 31)
     bounce_test = bounce_features(apply, params, dataset, 2, config.readout_pairs // 2, config.seed + 32)
-    for name, index in (("c_t", 0), ("z_hat", 1)):
-        result = fit_bounce_probe(
-            keys[4 + index],
-            bounce_train[index],
-            bounce_train[2],
-            bounce_val[index],
-            bounce_val[2],
-            num_steps=config.readout_steps,
-            batch_size=config.readout_batch_size,
-            learning_rate=config.readout_lr,
-            seed=config.seed,
-        )
-        for metric, value in bounce_metrics(
-            np.asarray(apply_mlp_probe(result, bounce_test[index])), bounce_test[2]
-        ).items():
-            rows[f"{name}_bounce_{metric}"] = value
+    result = fit_bounce_probe(
+        keys[2],
+        bounce_train[0],
+        bounce_train[1],
+        bounce_val[0],
+        bounce_val[1],
+        num_steps=config.readout_steps,
+        batch_size=config.readout_batch_size,
+        learning_rate=config.readout_lr,
+        seed=config.seed,
+    )
+    for metric, value in bounce_metrics(
+        np.asarray(apply_mlp_probe(result, bounce_test[0])), bounce_test[1]
+    ).items():
+        rows[f"c_t_bounce_{metric}"] = value
 
-    test_features = test_by_query["final"]
-    for name in ("c_t", "z_hat"):
-        features = test_features[name][:, :EMBED_DIM]
-        rows[f"{name}_variance"] = feature_variance(features)
-        rows[f"{name}_cosine"] = mean_pairwise_cosine(features)
-        rows[f"{name}_rank"] = effective_rank(features)
+    features = test_by_query["final"]["c_t"][:, :EMBED_DIM]
+    rows["c_t_variance"] = feature_variance(features)
+    rows["c_t_cosine"] = mean_pairwise_cosine(features)
+    rows["c_t_rank"] = effective_rank(features)
     return rows
 
 

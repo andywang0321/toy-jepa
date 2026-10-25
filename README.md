@@ -122,15 +122,15 @@ ruff check src/toy_jepa tests scripts
 
 Phase 2 is implemented in `src/toy_jepa/phase2/`: variable context `m`,
 variable horizon `k`, a `FINAL` query, a temporal transformer, Optax AdamW, and
-frozen-feature probes for state, final state, digit identity, and bounce.
+three arms: pixel-MSE, flow-matching pixel, and JEPA. Probes use `c_t` only.
 
 ```bash
 bash scripts/run_p2.sh
 ```
 
-`run_p2.sh` runs five seeds for both arms: pixel sequentially on physical GPU
-`0`, JEPA sequentially on GPU `3`. Override with `PIXEL_GPU`, `JEPA_GPU`, or
-`SEEDS`. Per-seed logs are under `runs/p2/<arm>/seed_<n>/`, and model
-checkpoints go to gitignored `checkpoints/p2/`.
+`run_p2.sh` runs five seeds for all three arms: pixel and pixel-FM sequentially
+on GPU `0`, JEPA on GPU `3`. Override with `PIXEL_GPU`, `JEPA_GPU`, or `SEEDS`.
+Per-seed logs are under `runs/p2/<arm>/seed_<n>/`, and model checkpoints go to
+gitignored `checkpoints/p2/`.
 
 See [docs/phase2.md](docs/phase2.md) for the protocol and held-out axes.

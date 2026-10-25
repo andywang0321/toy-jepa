@@ -36,7 +36,9 @@ per-frame CNN -> temporal transformer -> masked mean -> c_t
 
 The query is `(k / 64, final_flag)`, embedded and concatenated with `c_t`.
 
-- **Pixel:** MLP decoder predicts the target frame; loss is pixel MSE.
+- **Pixel-MSE:** MLP decoder predicts the target frame; loss is pixel MSE.
+- **Pixel-FM:** same context path, MLP velocity field; rectified flow matching
+  on future frames.
 - **JEPA:** MLP predictor predicts the target-frame embedding; the target
   encoder is stop-gradient; loss is latent MSE.
 
@@ -44,7 +46,8 @@ The same frame encoder and temporal transformer are used by both arms.
 
 ## Probes
 
-Frozen features from `c_t` and `z_hat`:
+Frozen features from `c_t` only. `z_hat` is a JEPA-specific predictor output,
+so it is not used as a cross-arm representation.
 
 - state at test horizons `k`;
 - final state at stop;
@@ -65,14 +68,16 @@ construction, so it is excluded from R²-style comparisons.
 bash scripts/run_p2.sh
 ```
 
-This runs seeds `0..4` for both arms. Pixel runs its seeds sequentially on GPU
-`0`; JEPA runs its seeds sequentially on GPU `3`. Override with `PIXEL_GPU`,
+This runs seeds `0..4` for pixel, pixel-FM, and JEPA. Pixel and pixel-FM run
+sequentially on GPU `0`; JEPA runs on GPU `3`. Override with `PIXEL_GPU`,
 `JEPA_GPU`, or `SEEDS`.
 
 ```text
 runs/p2/pixel/seed_0..4/
+runs/p2/pixel_fm/seed_0..4/
 runs/p2/jepa/seed_0..4/
-checkpoints/p2/pixel/seed_0..4/params.pkl   # gitignored
+checkpoints/p2/pixel/seed_0..4/params.pkl      # gitignored
+checkpoints/p2/pixel_fm/seed_0..4/params.pkl
 checkpoints/p2/jepa/seed_0..4/params.pkl
 runs/analysis/p2_report.md
 runs/analysis/p2_comparison.png
@@ -92,4 +97,5 @@ instability at a fixed architecture and budget.
 - future-context targets;
 - EMA/SIGReg;
 - Muon;
-- flow-matching pixel decoder.
+- shared or post-hoc flow decoding of JEPA features;
+- generative sample metrics beyond state probes.
