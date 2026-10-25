@@ -23,9 +23,9 @@ PIXEL_HIDDEN = 512
 class Config(NamedTuple):
     run_dir: Path
     seed: int = 0
-    num_samples: int = 2_000
-    num_steps: int = 3_000
-    batch_size: int = 32
+    num_samples: int = 10_000
+    num_steps: int = 5_000
+    batch_size: int = 64
     eval_every: int = 250
     eval_batches: int = 8
     learning_rate: float = 3e-4
