@@ -72,15 +72,15 @@ third.
 src/toy_jepa/
   constants.py, viz.py
   core/        types, optim, train
-  data/        dataset, mnist
-  evaluation/  protocol, metrics, readout
-  models/      mlp, norm, cnn, baseline, jepa_*
+  data/        friction dataset adapter, windows
+  evaluation/  metrics, phase-1 protocol/readout
+  models/      phase-1 CNN, MLP, JEPA variants
+  phase2/      windows, transformer, pixel/JEPA, Optax, probes
 scripts/
   m1_pixel.py ... m5_sigreg.py
-  sweep_ema.py, sweep_sigreg.py
-  sweep_seeds.py
+  p2_pixel.py, p2_jepa.py, p2_analyze.py
   analyze.py, analyze_seeds.py
-  run_sweeps.sh, run_arms.sh, run_seeds.sh
+  run_arms.sh, run_seeds.sh, run_p2.sh
 tests/
 ```
 
@@ -117,8 +117,15 @@ ruff check src/toy_jepa tests scripts
 ## Docs
 
 - [Phase 1 report](docs/phase1.md)
+- [Phase 2 protocol](docs/phase2.md)
 - [Metric guide](docs/metrics.md)
 
-Phase 2 uses the friction world from `tiny-worlds`: variable context `m`,
-variable horizon `k`, final-stop targets, and new model/experiment designs.
-That is the next implementation step.
+Phase 2 is implemented in `src/toy_jepa/phase2/`: variable context `m`,
+variable horizon `k`, a `FINAL` query, a temporal transformer, Optax AdamW, and
+frozen-feature probes for state, final state, digit identity, and bounce.
+
+```bash
+bash scripts/run_p2.sh
+```
+
+See [docs/phase2.md](docs/phase2.md) for the protocol and held-out axes.

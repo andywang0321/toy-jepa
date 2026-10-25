@@ -13,6 +13,7 @@ dependencies = [
     "matplotlib>=3.11.2",
     "numpy>=2.5.4",
     "tiny-worlds[friction-mnist]",
+    "optax>=0.2.8",
 ]
 
 [build-system]
