@@ -128,4 +128,8 @@ frozen-feature probes for state, final state, digit identity, and bounce.
 bash scripts/run_p2.sh
 ```
 
+`run_p2.sh` starts pixel and JEPA concurrently: pixel on physical GPU `0`, JEPA
+on physical GPU `3`. Override with `PIXEL_GPU` and `JEPA_GPU`. Logs go to
+`runs/p2_pixel/train.log` and `runs/p2_jepa/train.log`.
+
 See [docs/phase2.md](docs/phase2.md) for the protocol and held-out axes.

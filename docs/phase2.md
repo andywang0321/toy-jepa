@@ -61,7 +61,9 @@ evaluated on held-out `m` and `k`.
 bash scripts/run_p2.sh
 ```
 
-This runs the pixel arm, the JEPA arm, and the analyzer:
+This runs the pixel arm and the JEPA arm in parallel on GPUs `0` and `3`, then
+the analyzer. Override with `PIXEL_GPU` and `JEPA_GPU`. Logs go to
+`runs/p2_pixel/train.log` and `runs/p2_jepa/train.log`.
 
 ```text
 runs/p2_pixel/
