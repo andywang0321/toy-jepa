@@ -6,7 +6,7 @@ cd "$ROOT"
 
 PIXEL_GPU="${PIXEL_GPU:-0}"
 JEPA_GPU="${JEPA_GPU:-3}"
-SEEDS="${SEEDS:-0 1 2 3 4}"
+SEEDS="${SEEDS:-0 1}"
 
 pixel_pid=""
 jepa_pid=""
@@ -51,5 +51,4 @@ if ((pixel_status != 0 || jepa_status != 0)); then
     exit 1
 fi
 
-run_arm pixel_fm "$PIXEL_GPU" p2_pixel_fm.py
 uv run python scripts/p2_analyze.py
