@@ -1,0 +1,21 @@
+pixel   250 train 0.03368 val 0.03340
+pixel   500 train 0.02937 val 0.03009
+pixel   750 train 0.02846 val 0.02889
+pixel  1000 train 0.02995 val 0.02803
+pixel  1250 train 0.02676 val 0.02750
+pixel  1500 train 0.02686 val 0.02682
+pixel  1750 train 0.02633 val 0.02643
+pixel  2000 train 0.02487 val 0.02603
+pixel  2250 train 0.02612 val 0.02581
+pixel  2500 train 0.02347 val 0.02557
+pixel  2750 train 0.02398 val 0.02527
+pixel  3000 train 0.02266 val 0.02509
+pixel  3250 train 0.02571 val 0.02495
+pixel  3500 train 0.02470 val 0.02470
+pixel  3750 train 0.02554 val 0.02462
+pixel  4000 train 0.02446 val 0.02431
+pixel  4250 train 0.02235 val 0.02430
+pixel  4500 train 0.02204 val 0.02404
+pixel  4750 train 0.02343 val 0.02396
+pixel  5000 train 0.02520 val 0.02376
+wrote /home/andy/projects/toy-jepa/runs/p2/pixel/seed_1

@@ -1,62 +1,26 @@
-# Phase 2
+# Phase 2 seeds
 
 | metric | pixel | JEPA |
 |---|---:|---:|
-| c_t_bounce_accuracy | 0.78500 | 0.84000 |
-| c_t_cosine | 0.46435 | 0.68289 |
-| c_t_digit_accuracy | 0.13800 | 0.12400 |
-| c_t_rank | 58.69615 | 24.18717 |
-| c_t_state_final_position_mae | 9.00915 | 7.78973 |
-| c_t_state_final_r2 | -6597062609276.39844 | -2527588675752.53027 |
-| c_t_state_final_state_mse | 0.06153 | 0.04089 |
-| c_t_state_final_velocity_mae | 0.36962 | 0.22137 |
-| c_t_state_k12_position_mae | 6.41730 | 4.94645 |
-| c_t_state_k12_r2 | -0.84661 | -0.09514 |
-| c_t_state_k12_state_mse | 0.05288 | 0.03569 |
-| c_t_state_k12_velocity_mae | 0.52064 | 0.40962 |
-| c_t_state_k24_position_mae | 6.38130 | 4.93884 |
-| c_t_state_k24_r2 | -1.54788 | -0.44820 |
-| c_t_state_k24_state_mse | 0.05075 | 0.03396 |
-| c_t_state_k24_velocity_mae | 0.49978 | 0.39482 |
-| c_t_state_k3_position_mae | 6.66815 | 5.16848 |
-| c_t_state_k3_r2 | -0.53511 | 0.06612 |
-| c_t_state_k3_state_mse | 0.05393 | 0.03671 |
-| c_t_state_k3_velocity_mae | 0.53291 | 0.42144 |
-| c_t_state_k48_position_mae | 7.01247 | 5.85093 |
-| c_t_state_k48_r2 | -5.30138 | -3.35032 |
-| c_t_state_k48_state_mse | 0.06388 | 0.04865 |
-| c_t_state_k48_velocity_mae | 0.54328 | 0.47589 |
-| c_t_state_k6_position_mae | 6.53421 | 5.20466 |
-| c_t_state_k6_r2 | -0.43642 | 0.13218 |
-| c_t_state_k6_state_mse | 0.05518 | 0.03824 |
-| c_t_state_k6_velocity_mae | 0.53286 | 0.42930 |
-| c_t_variance | 0.55629 | 0.29352 |
-| z_hat_bounce_accuracy | 0.78700 | 0.81900 |
-| z_hat_cosine | 0.27519 | 0.44136 |
-| z_hat_digit_accuracy | 0.15100 | 0.09850 |
-| z_hat_rank | 29.16717 | 13.00190 |
-| z_hat_state_final_position_mae | 8.44146 | 7.74358 |
-| z_hat_state_final_r2 | -4959761558897.03223 | -2062691367956.79346 |
-| z_hat_state_final_state_mse | 0.05253 | 0.03912 |
-| z_hat_state_final_velocity_mae | 0.29317 | 0.20286 |
-| z_hat_state_k12_position_mae | 6.49512 | 5.10720 |
-| z_hat_state_k12_r2 | -0.95323 | -0.13641 |
-| z_hat_state_k12_state_mse | 0.05581 | 0.03565 |
-| z_hat_state_k12_velocity_mae | 0.52041 | 0.41332 |
-| z_hat_state_k24_position_mae | 5.96623 | 4.78172 |
-| z_hat_state_k24_r2 | -1.02278 | -0.28861 |
-| z_hat_state_k24_state_mse | 0.04669 | 0.03270 |
-| z_hat_state_k24_velocity_mae | 0.46275 | 0.38716 |
-| z_hat_state_k3_position_mae | 6.78622 | 5.21201 |
-| z_hat_state_k3_r2 | -0.60879 | 0.08364 |
-| z_hat_state_k3_state_mse | 0.05848 | 0.03654 |
-| z_hat_state_k3_velocity_mae | 0.53971 | 0.42205 |
-| z_hat_state_k48_position_mae | 5.85571 | 5.11343 |
-| z_hat_state_k48_r2 | -2.17541 | -1.13116 |
-| z_hat_state_k48_state_mse | 0.05079 | 0.03960 |
-| z_hat_state_k48_velocity_mae | 0.49787 | 0.42572 |
-| z_hat_state_k6_position_mae | 7.05977 | 5.27875 |
-| z_hat_state_k6_r2 | -0.64835 | 0.00912 |
-| z_hat_state_k6_state_mse | 0.06794 | 0.04152 |
-| z_hat_state_k6_velocity_mae | 0.60566 | 0.45753 |
-| z_hat_variance | 0.77151 | 0.52568 |
+| c_t_state_k3_position_mae | 6.8643 ± 0.2018 (n=5) | 5.1823 ± 0.0846 (n=5) |
+| c_t_state_k24_position_mae | 6.6547 ± 0.1638 (n=5) | 5.1541 ± 0.1476 (n=5) |
+| c_t_state_k48_position_mae | 6.7289 ± 0.1805 (n=5) | 5.6124 ± 0.1679 (n=5) |
+| c_t_state_final_position_mae | 8.8976 ± 0.1181 (n=5) | 7.6131 ± 0.0973 (n=5) |
+| z_hat_state_final_position_mae | 8.2607 ± 0.1071 (n=5) | 7.4359 ± 0.1796 (n=5) |
+| c_t_digit_accuracy | 0.0308 ± 0.0076 (n=5) | 0.0198 ± 0.0022 (n=5) |
+| z_hat_digit_accuracy | 0.0352 ± 0.0031 (n=5) | 0.0190 ± 0.0032 (n=5) |
+| c_t_bounce_accuracy | 0.8044 ± 0.0086 (n=5) | 0.8404 ± 0.0158 (n=5) |
+| c_t_bounce_balanced_accuracy | 0.7605 ± 0.0128 (n=5) | 0.7979 ± 0.0163 (n=5) |
+| c_t_variance | 0.5314 ± 0.0199 (n=5) | 0.2649 ± 0.0154 (n=5) |
+| c_t_cosine | 0.4903 ± 0.0191 (n=5) | 0.7143 ± 0.0169 (n=5) |
+| c_t_rank | 59.6408 ± 0.4486 (n=5) | 23.5561 ± 0.2816 (n=5) |
+
+Final position MAE by context length:
+
+| m | pixel c_t | JEPA c_t | pixel z_hat | JEPA z_hat |
+|---:|---:|---:|---:|---:|
+| 3 | 8.897 ± 0.241 | 8.455 ± 0.227 | 7.783 ± 0.212 | 7.584 ± 0.163 |
+| 6 | 9.088 ± 0.339 | 8.227 ± 0.174 | 7.668 ± 0.269 | 7.418 ± 0.203 |
+| 12 | 8.733 ± 0.221 | 8.120 ± 0.059 | 7.419 ± 0.389 | 7.320 ± 0.345 |
+
+![comparison](p2_comparison.png)
