@@ -73,17 +73,20 @@ export TINY_WORLDS_MNIST_DIR="$HOME/data/mnist"
 uv sync
 ```
 
-Run five seeds for all three arms:
+Three GPUs, full parallel:
 
 ```bash
-bash scripts/run_all.sh
+PIXEL_GPU=0 JEPA_GPU=1 FLOW_GPU=2 bash scripts/run_all.sh
 ```
 
-Subset seeds:
+One GPU, sequential:
 
 ```bash
-SEEDS="0 1 2" bash scripts/run_all.sh
+PIXEL_GPU=0 JEPA_GPU=0 FLOW_GPU=0 SEEDS="0 1 2" bash scripts/run_all.sh
 ```
+
+Set all three GPU variables equal for serial execution, or all three distinct
+for parallel execution. Subset seeds with `SEEDS="0 1 2"`.
 
 Outputs:
 

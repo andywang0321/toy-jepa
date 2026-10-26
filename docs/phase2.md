@@ -68,9 +68,20 @@ construction, so it is excluded from R²-style comparisons.
 bash scripts/run_all.sh
 ```
 
-This runs seeds `0..4` by default for pixel, pixel-FM, and JEPA. Pixel and
-pixel-FM run sequentially on GPU `0`; JEPA runs on GPU `3`. Override with `PIXEL_GPU`,
-`JEPA_GPU`, or `SEEDS`.
+Three GPUs:
+
+```bash
+PIXEL_GPU=0 JEPA_GPU=1 FLOW_GPU=2 bash scripts/run_all.sh
+```
+
+One GPU (sequential):
+
+```bash
+PIXEL_GPU=0 JEPA_GPU=0 FLOW_GPU=0 SEEDS="0 1 2" bash scripts/run_all.sh
+```
+
+GPU variables must be all equal or all distinct. Each arm runs its seeds
+sequentially on its assigned GPU.
 
 ```text
 runs/p2/pixel/seed_0..4/

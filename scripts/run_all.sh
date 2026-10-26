@@ -6,15 +6,13 @@ cd "$ROOT"
 
 PIXEL_GPU="${PIXEL_GPU:-0}"
 JEPA_GPU="${JEPA_GPU:-3}"
+FLOW_GPU="${FLOW_GPU:-2}"
 SEEDS="${SEEDS:-0 1 2 3 4}"
 
-pixel_pid=""
-jepa_pid=""
+pids=()
 cleanup() {
-    for pid in "$pixel_pid" "$jepa_pid"; do
-        if [ -n "$pid" ]; then
-            kill "$pid" 2>/dev/null || true
-        fi
+    for pid in "${pids[@]}"; do
+        kill "$pid" 2>/dev/null || true
     done
 }
 trap cleanup INT TERM
@@ -36,20 +34,31 @@ run_arm() {
     done
 }
 
-run_arm pixel "$PIXEL_GPU" train_pixel.py &
-pixel_pid=$!
-run_arm jepa "$JEPA_GPU" train_jepa.py &
-jepa_pid=$!
+if [ "$PIXEL_GPU" = "$JEPA_GPU" ] && [ "$JEPA_GPU" = "$FLOW_GPU" ]; then
+    # One GPU: run everything sequentially.
+    run_arm pixel "$PIXEL_GPU" train_pixel.py
+    run_arm jepa "$JEPA_GPU" train_jepa.py
+    run_arm pixel_fm "$FLOW_GPU" train_pixel_flow.py
+elif [ "$PIXEL_GPU" != "$JEPA_GPU" ] && [ "$PIXEL_GPU" != "$FLOW_GPU" ] && [ "$JEPA_GPU" != "$FLOW_GPU" ]; then
+    # Three GPUs: one arm per GPU.
+    run_arm pixel "$PIXEL_GPU" train_pixel.py &
+    pids+=("$!")
+    run_arm jepa "$JEPA_GPU" train_jepa.py &
+    pids+=("$!")
+    run_arm pixel_fm "$FLOW_GPU" train_pixel_flow.py &
+    pids+=("$!")
+else
+    echo "Set PIXEL_GPU/JEPA_GPU/FLOW_GPU all equal (serial) or all distinct (parallel)." >&2
+    exit 2
+fi
 
-pixel_status=0
-jepa_status=0
-wait "$pixel_pid" || pixel_status=$?
-wait "$jepa_pid" || jepa_status=$?
-
-if ((pixel_status != 0 || jepa_status != 0)); then
+status=0
+for pid in "${pids[@]}"; do
+    wait "$pid" || status=1
+done
+if ((status != 0)); then
     echo "a phase-2 seed sweep failed"
     exit 1
 fi
 
-run_arm pixel_fm "$PIXEL_GPU" train_pixel_flow.py
 uv run python scripts/analyze.py
