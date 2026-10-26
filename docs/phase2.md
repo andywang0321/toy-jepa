@@ -105,8 +105,9 @@ After checkpoints exist:
 uv run python scripts/sample_models.py
 ```
 
-The grid rows are horizons (`k=3, 12, 24, 48`, `FINAL`) and columns are target,
-Pixel-MSE, Pixel-FM, and JEPA with a flow head trained on frozen `c_t`.
+The grid rows are target, Pixel-MSE, Pixel-FM, JEPA+flow, and JEPA+VAE;
+columns are `k=3, 12, 24, 48`, `FINAL`, so left-to-right is forward in time.
+Both JEPA heads are trained on frozen `c_t`.
 
 ## Optimizer
 
@@ -119,5 +120,4 @@ instability at a fixed architecture and budget.
 - future-context targets;
 - EMA/SIGReg;
 - Muon;
-- shared or post-hoc flow decoding of JEPA features;
 - generative sample metrics beyond state probes.

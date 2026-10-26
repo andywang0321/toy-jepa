@@ -107,8 +107,17 @@ After training, plot target / Pixel-MSE / Pixel-FM / JEPA-decoded futures:
 uv run python scripts/sample_models.py
 ```
 
-JEPA uses a frozen `c_t` and a newly trained flow head. The grid has horizons
-as rows and models as columns, including a target reference column.
+JEPA uses frozen `c_t` features and trains two post-hoc generative heads:
+rectified-flow and VAE. The grid has **models as rows** and horizons as columns,
+so left-to-right is forward in time:
+
+```text
+target
+pixel-MSE
+pixel-FM
+JEPA + flow
+JEPA + VAE
+```
 
 ## Docs
 
