@@ -1,0 +1,21 @@
+jepa   250 train 0.11808 val 0.13014
+jepa   500 train 0.13740 val 0.16723
+jepa   750 train 0.25002 val 0.18831
+jepa  1000 train 0.23636 val 0.20694
+jepa  1250 train 0.23920 val 0.22953
+jepa  1500 train 0.32041 val 0.23508
+jepa  1750 train 0.22271 val 0.22695
+jepa  2000 train 0.17835 val 0.21577
+jepa  2250 train 0.19422 val 0.20918
+jepa  2500 train 0.18767 val 0.20960
+jepa  2750 train 0.19050 val 0.19924
+jepa  3000 train 0.16723 val 0.19439
+jepa  3250 train 0.17297 val 0.18732
+jepa  3500 train 0.22551 val 0.18007
+jepa  3750 train 0.17315 val 0.17375
+jepa  4000 train 0.13621 val 0.18383
+jepa  4250 train 0.18785 val 0.17156
+jepa  4500 train 0.24652 val 0.16867
+jepa  4750 train 0.15372 val 0.17132
+jepa  5000 train 0.14671 val 0.17722
+wrote /home/andy/projects/toy-jepa/runs/p2/jepa/seed_2

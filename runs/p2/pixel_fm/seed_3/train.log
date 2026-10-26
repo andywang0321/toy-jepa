@@ -1,0 +1,21 @@
+pixel_fm   250 train 1.03702 val 1.03904
+pixel_fm   500 train 1.03720 val 1.03819
+pixel_fm   750 train 1.03616 val 1.03688
+pixel_fm  1000 train 1.03417 val 1.03547
+pixel_fm  1250 train 1.03092 val 1.03432
+pixel_fm  1500 train 1.02997 val 1.03350
+pixel_fm  1750 train 1.03062 val 1.03305
+pixel_fm  2000 train 1.03241 val 1.03231
+pixel_fm  2250 train 1.02863 val 1.03209
+pixel_fm  2500 train 1.02477 val 1.03162
+pixel_fm  2750 train 1.03111 val 1.03130
+pixel_fm  3000 train 1.02799 val 1.03109
+pixel_fm  3250 train 1.03477 val 1.03091
+pixel_fm  3500 train 1.03112 val 1.03073
+pixel_fm  3750 train 1.03187 val 1.03058
+pixel_fm  4000 train 1.03794 val 1.03049
+pixel_fm  4250 train 1.03307 val 1.03034
+pixel_fm  4500 train 1.03294 val 1.03016
+pixel_fm  4750 train 1.02454 val 1.03017
+pixel_fm  5000 train 1.03062 val 1.03008
+wrote /home/andy/projects/toy-jepa/runs/p2/pixel_fm/seed_3
