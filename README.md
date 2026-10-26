@@ -50,7 +50,7 @@ src/toy_jepa/
   cnn.py, mlp.py, norm.py, types.py
 scripts/
   train_pixel.py, train_pixel_flow.py, train_jepa.py
-  analyze.py, run_all.sh, visualize.py
+  analyze.py, run_all.sh, visualize.py, sample_models.py
 tests/
   test_data.py, test_models.py, test_train.py
   test_probes.py, test_metrics.py, test_checkpoint.py
@@ -96,6 +96,19 @@ checkpoints/p2/<arm>/seed_<n>/params.pkl   # gitignored
 runs/analysis/p2_report.md
 runs/analysis/p2_comparison.png
 ```
+
+## Docs
+
+## Samples
+
+After training, plot target / Pixel-MSE / Pixel-FM / JEPA-decoded futures:
+
+```bash
+uv run python scripts/sample_models.py
+```
+
+JEPA uses a frozen `c_t` and a newly trained flow head. The grid has horizons
+as rows and models as columns, including a target reference column.
 
 ## Docs
 

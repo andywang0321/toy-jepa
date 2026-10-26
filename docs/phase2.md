@@ -97,6 +97,17 @@ runs/analysis/p2_comparison.png
 Per-seed logs are under each run's `train.log`. Checkpoints are local and
 gitignored.
 
+## Samples
+
+After checkpoints exist:
+
+```bash
+uv run python scripts/sample_models.py
+```
+
+The grid rows are horizons (`k=3, 12, 24, 48`, `FINAL`) and columns are target,
+Pixel-MSE, Pixel-FM, and JEPA with a flow head trained on frozen `c_t`.
+
 ## Optimizer
 
 Phase 2 uses Optax AdamW. Muon is deferred until AdamW shows underfitting or
