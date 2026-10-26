@@ -1,9 +1,8 @@
-"""Compare completed arms and sweeps in ``runs/``."""
+"""Aggregate phase-2 c_t seed runs and write a compact report."""
 
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 import matplotlib
@@ -12,220 +11,115 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-RUNS = Path(__file__).resolve().parents[1] / "runs"
-OUT = RUNS / "analysis"
-ARMS = (
-    ("M1 pixel", "m1_pixel"),
-    ("M2 JEPA", "m2_jepa"),
-    ("M3 stop-grad", "m3_stopgrad"),
-    ("M4 EMA", "m4_ema"),
-    ("M5 SIGReg", "m5_sigreg"),
-)
-SWEEPS = (
-    ("EMA", "sweep_ema", "decay_", "decay"),
-    ("SIGReg", "sweep_sigreg", "weight_", "weight"),
-)
-ARM_FIELDS = (
-    "arm",
-    "loss",
-    "persistence",
-    "c_t_mse",
-    "c_t_pos_mae",
-    "c_t_vel_mae",
-    "c_t_r2",
-    "z_mse",
-    "z_r2",
-    "c_t_var",
-    "c_t_cos",
-    "c_t_rank",
-    "num_samples",
-    "num_steps",
-)
-SWEEP_FIELDS = (
-    "sweep",
-    "setting",
-    "c_t_mse",
-    "z_mse",
-    "c_t_r2",
-    "c_t_var",
-    "c_t_cos",
-    "c_t_rank",
-)
+ROOT = Path(__file__).resolve().parents[1]
+RUNS = {
+    "pixel": ROOT / "runs" / "p2" / "pixel",
+    "pixel_fm": ROOT / "runs" / "p2" / "pixel_fm",
+    "jepa": ROOT / "runs" / "p2" / "jepa",
+}
+OUT = ROOT / "runs" / "analysis"
+COLORS = {"pixel": "tab:orange", "pixel_fm": "tab:green", "jepa": "tab:blue"}
 
 
-def read_csv(path: Path) -> dict[str, float]:
-    if not path.exists():
-        return {}
+def _read(path: Path) -> dict[str, float]:
     with path.open() as file:
-        return {row["metric"]: float(row["value"]) for row in csv.DictReader(file) if row.get("value", "") != ""}
+        return {row["metric"]: float(row["value"]) for row in csv.DictReader(file)}
 
 
-def load_arm(name: str, dirname: str) -> dict[str, float | str] | None:
-    run = RUNS / dirname
-    if not (run / "probes.csv").exists():
-        print(f"skip missing {run}")
-        return None
-    m = read_csv(run / "probes.csv")
-    config = json.loads((run / "config.json").read_text())
+def _seed_runs(name: str) -> list[Path]:
+    paths = sorted(RUNS[name].glob("seed_*/probes.csv"))
+    if paths:
+        return paths
+    return []
+
+
+def _aggregate(paths: list[Path]) -> dict[str, tuple[float, float, int]]:
+    values: dict[str, list[float]] = {}
+    for path in paths:
+        for metric, value in _read(path).items():
+            if metric.startswith("c_t_"):
+                values.setdefault(metric, []).append(value)
     return {
-        "arm": name,
-        "loss": m.get("test_pixel_mse", m.get("test_loss", np.nan)),
-        "persistence": m.get(
-            "test_persistence_mse",
-            m.get("test_latent_persistence_mse", np.nan),
-        ),
-        "c_t_mse": m["c_t_state_mse"],
-        "c_t_pos_mae": m["c_t_position_mae"],
-        "c_t_vel_mae": m["c_t_velocity_mae"],
-        "c_t_r2": m["c_t_r2"],
-        "z_mse": m["z_hat_state_mse"],
-        "z_r2": m["z_hat_r2"],
-        "c_t_var": m["c_t_variance"],
-        "c_t_cos": m["c_t_cosine"],
-        "c_t_rank": m["c_t_rank"],
-        "num_samples": int(config.get("num_samples", 0)),
-        "num_steps": int(config.get("num_steps", 0)),
+        metric: (float(np.mean(vals)), float(np.std(vals)), len(vals))
+        for metric, vals in values.items()
     }
 
 
-def write_table(rows: list[dict], fields: tuple[str, ...], path: Path) -> None:
-    with path.open("w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
+def _write_summary(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
+    with (OUT / "p2_summary.csv").open("w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(("objective", "metric", "mean", "std", "n"))
+        for objective, metrics in runs.items():
+            for metric, (mean, std, n) in metrics.items():
+                writer.writerow((objective, metric, mean, std, n))
 
 
-def markdown_table(rows: list[dict], fields: tuple[str, ...]) -> str:
-    lines = ["| " + " | ".join(fields) + " |", "|" + "---|" * len(fields)]
-    for row in rows:
+def _report(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
+    metrics = (
+        "c_t_state_k3_position_mae",
+        "c_t_state_k24_position_mae",
+        "c_t_state_k48_position_mae",
+        "c_t_state_final_position_mae",
+        "c_t_digit_accuracy",
+        "c_t_bounce_accuracy",
+        "c_t_bounce_balanced_accuracy",
+        "c_t_variance",
+        "c_t_cosine",
+        "c_t_rank",
+    )
+    lines = ["# Phase 2 seeds", "", "| metric | pixel | pixel-FM | JEPA |", "|---|---:|---:|---:|"]
+    for metric in metrics:
         cells = []
-        for field in fields:
-            value = row[field]
-            cells.append(f"{value:.4g}" if isinstance(value, float) else str(value))
-        lines.append("| " + " | ".join(cells) + " |")
-    return "\n".join(lines)
+        for objective in ("pixel", "pixel_fm", "jepa"):
+            value = runs.get(objective, {}).get(metric)
+            cells.append("" if value is None else f"{value[0]:.4f} ± {value[1]:.4f} (n={value[2]})")
+        lines.append(f"| {metric} | {cells[0]} | {cells[1]} | {cells[2]} |")
+    lines += ["", "Final position MAE by context length:", "", "| m | pixel | pixel-FM | JEPA |", "|---:|---:|---:|---:|"]
+    for m in (3, 6, 12):
+        cells = []
+        for objective in ("pixel", "pixel_fm", "jepa"):
+            value = runs.get(objective, {}).get(f"c_t_state_final_m{m}_position_mae")
+            cells.append("" if value is None else f"{value[0]:.3f} ± {value[1]:.3f}")
+        lines.append(f"| {m} | {cells[0]} | {cells[1]} | {cells[2]} |")
+    lines += ["", "![comparison](p2_comparison.png)", ""]
+    (OUT / "p2_report.md").write_text("\n".join(lines))
 
 
-def plot_arms(rows: list[dict], path: Path) -> None:
-    names = [str(row["arm"]) for row in rows]
-    x = np.arange(len(rows))
-    fig, axes = plt.subplots(2, 2, figsize=(11, 7))
-    axes[0, 0].bar(x - 0.18, [r["c_t_mse"] for r in rows], 0.36, label="c_t")
-    axes[0, 0].bar(x + 0.18, [r["z_mse"] for r in rows], 0.36, label="z_hat")
-    axes[0, 0].set_title("state readout MSE")
-    axes[0, 0].set_xticks(x, names, rotation=20)
-    axes[0, 0].legend()
+def _plot(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    ks = (3, 6, 12, 24, 48)
+    for objective, color in COLORS.items():
+        means = [runs.get(objective, {}).get(f"c_t_state_k{k}_position_mae", (np.nan, 0, 0))[0] for k in ks]
+        stds = [runs.get(objective, {}).get(f"c_t_state_k{k}_position_mae", (np.nan, 0, 0))[1] for k in ks]
+        axes[0].errorbar(ks, means, yerr=stds, fmt="o-", color=color, label=objective)
+    axes[0].set_xscale("log")
+    axes[0].set_xlabel("k")
+    axes[0].set_ylabel("position MAE")
+    axes[0].set_title("held-out horizon")
+    axes[0].legend(fontsize=7)
 
-    axes[0, 1].bar(x - 0.18, [r["c_t_pos_mae"] for r in rows], 0.36, label="position")
-    axes[0, 1].bar(x + 0.18, [r["c_t_vel_mae"] for r in rows], 0.36, label="velocity")
-    axes[0, 1].set_title("c_t MAE (px, px/frame)")
-    axes[0, 1].set_xticks(x, names, rotation=20)
-    axes[0, 1].legend()
-
-    axes[1, 0].bar(x - 0.18, [r["c_t_r2"] for r in rows], 0.36, label="c_t")
-    axes[1, 0].bar(x + 0.18, [r["z_r2"] for r in rows], 0.36, label="z_hat")
-    axes[1, 0].set_title("state readout R²")
-    axes[1, 0].axhline(0.0, color="black", linewidth=0.5)
-    axes[1, 0].set_xticks(x, names, rotation=20)
-    axes[1, 0].legend()
-
-    axes[1, 1].bar(x - 0.18, [r["c_t_var"] for r in rows], 0.36, label="c_t variance")
-    axes[1, 1].bar(x + 0.18, [r["c_t_rank"] for r in rows], 0.36, label="c_t rank")
-    axes[1, 1].set_yscale("log")
-    axes[1, 1].set_title("c_t geometry")
-    axes[1, 1].set_xticks(x, names, rotation=20)
-    axes[1, 1].legend()
-    for axis in axes.flat:
-        axis.grid(True, axis="y", alpha=0.3)
+    labels = ("final",)
+    x = np.arange(len(labels))
+    for offset, objective, color in ((-0.2, "pixel", COLORS["pixel"]), (0.0, "pixel_fm", COLORS["pixel_fm"]), (0.2, "jepa", COLORS["jepa"])):
+        value = runs.get(objective, {}).get("c_t_state_final_position_mae", (np.nan, 0, 0))
+        axes[1].bar(x + offset, value[0], yerr=value[1], width=0.18, color=color, label=objective, capsize=3)
+    axes[1].set_xticks(x, labels)
+    axes[1].set_ylabel("final position MAE")
+    axes[1].set_title("terminal prediction")
+    axes[1].legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
+    fig.savefig(OUT / "p2_comparison.png", dpi=150)
     plt.close(fig)
-
-
-def load_sweeps() -> list[dict]:
-    rows = []
-    for label, dirname, prefix, key in SWEEPS:
-        for run in sorted((RUNS / dirname).glob(f"{prefix}*")):
-            probes = read_csv(run / "probes.csv")
-            if not probes:
-                continue
-            rows.append(
-                {
-                    "sweep": label,
-                    "setting": float(run.name.removeprefix(prefix)),
-                    "c_t_mse": probes["c_t_state_mse"],
-                    "z_mse": probes["z_hat_state_mse"],
-                    "c_t_r2": probes["c_t_r2"],
-                    "c_t_var": probes["c_t_variance"],
-                    "c_t_cos": probes["c_t_cosine"],
-                    "c_t_rank": probes["c_t_rank"],
-                }
-            )
-    return rows
-
-
-def plot_sweeps(rows: list[dict], path: Path) -> None:
-    fig, axes = plt.subplots(1, len(SWEEPS), figsize=(10, 3.5))
-    for axis, (label, *_) in zip(axes, SWEEPS):
-        subset = [row for row in rows if row["sweep"] == label]
-        if not subset:
-            axis.set_title(f"{label}: no runs")
-            continue
-        settings = [row["setting"] for row in subset]
-        axis.plot(settings, [row["c_t_mse"] for row in subset], "o-", label="c_t")
-        axis.plot(settings, [row["z_mse"] for row in subset], "o-", label="z_hat")
-        axis.set_xlabel("setting")
-        axis.set_ylabel("state MSE")
-        axis.set_title(label)
-        axis.grid(True, alpha=0.3)
-        axis.legend()
-    fig.tight_layout()
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-
-
-def write_report(arms: list[dict], sweeps: list[dict], path: Path) -> None:
-    lines = [
-        "# Run comparison",
-        "",
-        "## Main arms",
-        "",
-        markdown_table(arms, ARM_FIELDS),
-        "",
-    ]
-    if sweeps:
-        lines += ["## Sweeps", "", markdown_table(sweeps, SWEEP_FIELDS), ""]
-        for label, *_ in SWEEPS:
-            subset = [row for row in sweeps if row["sweep"] == label]
-            if subset:
-                best = min(subset, key=lambda row: row["c_t_mse"])
-                lines.append(f"- Best {label} by c_t MSE: {best['setting']} ({best['c_t_mse']:.4f})")
-    lines += ["", "![arms](comparison.png)", ""]
-    if sweeps:
-        lines += ["![sweeps](sweeps.png)", ""]
-    path.write_text("\n".join(lines))
 
 
 def main() -> None:
+    runs = {name: _aggregate(paths) for name in RUNS if (paths := _seed_runs(name))}
+    if not runs:
+        raise SystemExit("no phase-2 probe files found")
     OUT.mkdir(parents=True, exist_ok=True)
-    arms = [row for name, dirname in ARMS if (row := load_arm(name, dirname))]
-    sweeps = load_sweeps()
-    if arms:
-        write_table(arms, ARM_FIELDS, OUT / "summary.csv")
-        plot_arms(arms, OUT / "comparison.png")
-    if sweeps:
-        write_table(sweeps, SWEEP_FIELDS, OUT / "sweeps.csv")
-        plot_sweeps(sweeps, OUT / "sweeps.png")
-        best = {
-            label: min(
-                (row for row in sweeps if row["sweep"] == label),
-                key=lambda row: row["c_t_mse"],
-            )["setting"]
-            for label, *_ in SWEEPS
-            if any(row["sweep"] == label for row in sweeps)
-        }
-        (OUT / "best.json").write_text(json.dumps(best, indent=2) + "\n")
-    write_report(arms, sweeps, OUT / "report.md")
+    _write_summary(runs)
+    _report(runs)
+    _plot(runs)
     print(f"wrote {OUT}")
 
 
