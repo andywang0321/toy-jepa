@@ -20,7 +20,7 @@ import numpy as np
 from tiny_worlds.friction_mnist import generate_dataset
 
 from toy_jepa.checkpoint import load_params, save_params
-from toy_jepa.config import FINAL_PROB, K_TRAIN, MNIST_DIR, M_TRAIN
+from toy_jepa.config import EMBED_DIM, FINAL_PROB, K_TRAIN, MNIST_DIR, M_TRAIN
 from toy_jepa.data import WindowBatch, make_batch, sample_batch
 from toy_jepa.jepa_heads import (
     sample_flow_head,
@@ -78,6 +78,15 @@ def main() -> None:
     pixel = cast(PixelParams, _load(ROOT / "checkpoints/p2/pixel" / f"seed_{SEED}" / "params.pkl"))
     pixel_fm = cast(FlowParams, _load(ROOT / "checkpoints/p2/pixel_fm" / f"seed_{SEED}" / "params.pkl"))
     jepa = cast(JEPAParams, _load(ROOT / "checkpoints/p2/jepa" / f"seed_{SEED}" / "params.pkl"))
+
+    expected = 2 * EMBED_DIM + 1 + 64 * 64
+    actual = pixel_fm.velocity.blocks[0].w.shape[0]
+    if actual != expected:
+        raise SystemExit(
+            "pixel-FM checkpoint predates the x_t-conditioned flow fix; "
+            f"expected input {expected}, got {actual}. Retrain with "
+            "P2_SEED=0 uv run python scripts/train_pixel_flow.py"
+        )
 
     rng = np.random.default_rng(SEED + 31)
     batch = sample_batch(

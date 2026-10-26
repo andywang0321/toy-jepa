@@ -169,7 +169,7 @@ def init_flow(
             layers=layers,
             mlp_ratio=mlp_ratio,
         ),
-        velocity=init_mlp(velocity_key, [2 * embed_dim + 1, pixel_hidden, 64 * 64]),
+        velocity=init_mlp(velocity_key, [2 * embed_dim + 1 + 64 * 64, pixel_hidden, 64 * 64]),
     )
 
 
@@ -196,7 +196,9 @@ def apply_flow(
     x_t = (1.0 - time_map) * noise + time_map * batch.target_frame
     velocity = apply_mlp(
         params.velocity,
-        jnp.concatenate([c_t, query, time], axis=-1),
+        jnp.concatenate(
+            [c_t, query, time, x_t.reshape(x_t.shape[0], -1)], axis=-1
+        ),
     ).reshape(-1, 64, 64)
     return c_t, x_t, velocity - (batch.target_frame - noise)
 
@@ -220,7 +222,9 @@ def sample_flow(
         time = jnp.full((batch.target_frame.shape[0], 1), index / steps)
         velocity = apply_mlp(
             params.velocity,
-            jnp.concatenate([c_t, query, time], axis=-1),
+            jnp.concatenate(
+                [c_t, query, time, frame.reshape(frame.shape[0], -1)], axis=-1
+            ),
         ).reshape(-1, 64, 64)
         frame = frame + velocity / steps
     return jnp.clip(frame, 0.0, 1.0)

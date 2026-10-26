@@ -22,9 +22,10 @@ def _flow_loss(head: MLPParams, batch: tuple[jax.Array, ...], key: jax.Array) ->
     noise_key, time_key = jax.random.split(key)
     noise = jax.random.normal(noise_key, target.shape)
     time = jax.random.uniform(time_key, (target.shape[0], 1))
+    x_t = (1.0 - time[..., None]) * noise + time[..., None] * target
     velocity = apply_mlp(
         head,
-        jnp.concatenate([c_t, query, time], axis=-1),
+        jnp.concatenate([c_t, query, time, x_t.reshape(x_t.shape[0], -1)], axis=-1),
     ).reshape(-1, 64, 64)
     return jnp.mean((velocity - (target - noise)) ** 2)
 
@@ -39,7 +40,7 @@ def train_flow_head(
     batch_size: int,
     learning_rate: float = 1e-3,
 ) -> MLPParams:
-    head = init_mlp(key, [2 * c_t.shape[-1] + 1, 512, 64 * 64])
+    head = init_mlp(key, [2 * c_t.shape[-1] + 1 + 64 * 64, 512, 64 * 64])
     optimizer = optax.adamw(learning_rate=learning_rate, weight_decay=1e-4)
     state = optimizer.init(head)
     rng = np.random.default_rng(int(jax.random.bits(key)))
@@ -78,7 +79,9 @@ def sample_flow_head(
         time = jnp.full((c_t.shape[0], 1), index / steps)
         velocity = apply_mlp(
             head,
-            jnp.concatenate([c_t, query, time], axis=-1),
+            jnp.concatenate(
+                [c_t, query, time, frame.reshape(frame.shape[0], -1)], axis=-1
+            ),
         ).reshape(-1, 64, 64)
         frame = frame + velocity / steps
     return jnp.clip(frame, 0.0, 1.0)

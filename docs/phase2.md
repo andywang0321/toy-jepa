@@ -37,8 +37,8 @@ per-frame CNN -> temporal transformer -> masked mean -> c_t
 The query is `(k / 64, final_flag)`, embedded and concatenated with `c_t`.
 
 - **Pixel-MSE:** MLP decoder predicts the target frame; loss is pixel MSE.
-- **Pixel-FM:** same context path, MLP velocity field; rectified flow matching
-  on future frames.
+- **Pixel-FM:** same context path, MLP velocity field
+  `v(x_t, t, c_t, query)`; rectified flow matching on future frames.
 - **JEPA:** MLP predictor predicts the target-frame embedding; the target
   encoder is stop-gradient; loss is latent MSE.
 
@@ -108,6 +108,9 @@ uv run python scripts/sample_models.py
 The grid rows are target, Pixel-MSE, Pixel-FM, JEPA+flow, and JEPA+VAE;
 columns are `k=3, 12, 24, 48`, `FINAL`, so left-to-right is forward in time.
 Both JEPA heads are trained on frozen `c_t`.
+
+Flow heads must receive the current noisy frame `x_t`; old flow checkpoints
+created before this input was added cannot be decoded and must be retrained.
 
 ## Optimizer
 
