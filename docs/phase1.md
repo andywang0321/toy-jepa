@@ -45,7 +45,7 @@ Position/velocity MAE for the `c_t` readout (pixels, pixels/frame):
 | M4 EMA | 6.394 ± 0.133 | 0.992 ± 0.007 |
 | M5 SIGReg | 6.392 ± 0.096 | 0.994 ± 0.013 |
 
-![Five-seed comparison](../runs/analysis/seed_comparison.png)
+![Five-seed comparison](phase1_seed_comparison.png)
 
 ## Conclusions
 

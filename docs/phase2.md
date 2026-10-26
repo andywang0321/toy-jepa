@@ -42,7 +42,7 @@ The query is `(k / 64, final_flag)`, embedded and concatenated with `c_t`.
 - **JEPA:** MLP predictor predicts the target-frame embedding; the target
   encoder is stop-gradient; loss is latent MSE.
 
-The same frame encoder and temporal transformer are used by both arms.
+The same frame encoder and temporal transformer are used by all three arms.
 
 ## Probes
 
@@ -65,11 +65,11 @@ construction, so it is excluded from R²-style comparisons.
 ## Run
 
 ```bash
-bash scripts/run_p2.sh
+bash scripts/run_all.sh
 ```
 
-This runs seeds `0..4` for pixel, pixel-FM, and JEPA. Pixel and pixel-FM run
-sequentially on GPU `0`; JEPA runs on GPU `3`. Override with `PIXEL_GPU`,
+This runs seeds `0..4` by default for pixel, pixel-FM, and JEPA. Pixel and
+pixel-FM run sequentially on GPU `0`; JEPA runs on GPU `3`. Override with `PIXEL_GPU`,
 `JEPA_GPU`, or `SEEDS`.
 
 ```text

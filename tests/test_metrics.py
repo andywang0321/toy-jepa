@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from toy_jepa.constants import POSITION_SCALE, VELOCITY_SCALE
-from toy_jepa.evaluation.metrics import (
+from toy_jepa.config import POSITION_SCALE, VELOCITY_SCALE
+from toy_jepa.metrics import (
     effective_rank,
     knn_accuracy,
     ridge_r2,
