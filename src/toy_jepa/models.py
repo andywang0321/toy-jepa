@@ -11,6 +11,7 @@ from .types import CNNParams, MLPParams
 from .cnn import apply_cnn, init_cnn
 from .mlp import apply_mlp, init_mlp
 from .config import EMBED_DIM, HEADS, LAYERS, MLP_RATIO, PIXEL_HIDDEN
+from .flow_cnn import FlowCNNParams, apply_flow_cnn as apply_cnn_flow, init_flow_cnn
 from .data import WindowBatch
 from .transformer import TemporalParams, apply_temporal, init_temporal
 
@@ -146,12 +147,12 @@ def jepa_loss(params: JEPAParams, batch: WindowBatch) -> jax.Array:
     return jnp.mean((z_hat - jax.lax.stop_gradient(z_target)) ** 2)
 
 
-class FlowParams(NamedTuple):
+class FlowMLPParams(NamedTuple):
     context: ContextParams
     velocity: MLPParams
 
 
-def init_flow(
+def init_flow_mlp(
     key: jax.Array,
     *,
     embed_dim: int = EMBED_DIM,
@@ -159,9 +160,9 @@ def init_flow(
     layers: int = LAYERS,
     mlp_ratio: int = MLP_RATIO,
     pixel_hidden: int = PIXEL_HIDDEN,
-) -> FlowParams:
+) -> FlowMLPParams:
     context_key, velocity_key = jax.random.split(key)
-    return FlowParams(
+    return FlowMLPParams(
         context=init_context(
             context_key,
             embed_dim=embed_dim,
@@ -173,17 +174,8 @@ def init_flow(
     )
 
 
-def flow_context(
-    params: FlowParams,
-    batch: WindowBatch,
-    *,
-    heads: int = HEADS,
-) -> jax.Array:
-    return apply_context(params.context, batch, heads=heads)[0]
-
-
-def apply_flow(
-    params: FlowParams,
+def apply_flow_mlp(
+    params: FlowMLPParams,
     batch: WindowBatch,
     key: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -203,13 +195,13 @@ def apply_flow(
     return c_t, x_t, velocity - (batch.target_frame - noise)
 
 
-def flow_loss(params: FlowParams, batch: WindowBatch, key: jax.Array) -> jax.Array:
-    _, _, residual = apply_flow(params, batch, key)
+def flow_mlp_loss(params: FlowMLPParams, batch: WindowBatch, key: jax.Array) -> jax.Array:
+    _, _, residual = apply_flow_mlp(params, batch, key)
     return jnp.mean(residual**2)
 
 
-def sample_flow(
-    params: FlowParams,
+def sample_flow_mlp(
+    params: FlowMLPParams,
     batch: WindowBatch,
     key: jax.Array,
     *,
@@ -226,5 +218,75 @@ def sample_flow(
                 [c_t, query, time, frame.reshape(frame.shape[0], -1)], axis=-1
             ),
         ).reshape(-1, 64, 64)
+        frame = frame + velocity / steps
+    return jnp.clip(frame, 0.0, 1.0)
+
+
+class FlowCNNModelParams(NamedTuple):
+    context: ContextParams
+    cnn: FlowCNNParams
+
+
+def init_flow_cnn_model(
+    key: jax.Array,
+    *,
+    embed_dim: int = EMBED_DIM,
+    heads: int = HEADS,
+    layers: int = LAYERS,
+    mlp_ratio: int = MLP_RATIO,
+) -> FlowCNNModelParams:
+    context_key, cnn_key = jax.random.split(key)
+    return FlowCNNModelParams(
+        context=init_context(
+            context_key,
+            embed_dim=embed_dim,
+            heads=heads,
+            layers=layers,
+            mlp_ratio=mlp_ratio,
+        ),
+        cnn=init_flow_cnn(cnn_key, cond_dim=2 * embed_dim + 1),
+    )
+
+
+def apply_flow_cnn(
+    params: FlowCNNModelParams,
+    batch: WindowBatch,
+    key: jax.Array,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    c_t, query = apply_context(params.context, batch)
+    noise_key, time_key = jax.random.split(key)
+    noise = jax.random.normal(noise_key, batch.target_frame.shape)
+    time = jax.random.uniform(time_key, (batch.target_frame.shape[0], 1))
+    time_map = time.reshape(-1, 1, 1)
+    x_t = (1.0 - time_map) * noise + time_map * batch.target_frame
+    velocity = apply_cnn_flow(
+        params.cnn,
+        x_t[..., None],
+        jnp.concatenate([c_t, query, time], axis=-1),
+    )
+    return c_t, x_t, velocity - (batch.target_frame - noise)
+
+
+def flow_cnn_loss(params: FlowCNNModelParams, batch: WindowBatch, key: jax.Array) -> jax.Array:
+    _, _, residual = apply_flow_cnn(params, batch, key)
+    return jnp.mean(residual**2)
+
+
+def sample_flow_cnn(
+    params: FlowCNNModelParams,
+    batch: WindowBatch,
+    key: jax.Array,
+    *,
+    steps: int = 24,
+) -> jax.Array:
+    c_t, query = apply_context(params.context, batch)
+    frame = jax.random.normal(key, batch.target_frame.shape)
+    for index in range(steps):
+        time = jnp.full((batch.target_frame.shape[0], 1), index / steps)
+        velocity = apply_cnn_flow(
+            params.cnn,
+            frame[..., None],
+            jnp.concatenate([c_t, query, time], axis=-1),
+        )
         frame = frame + velocity / steps
     return jnp.clip(frame, 0.0, 1.0)

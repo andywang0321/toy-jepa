@@ -1,4 +1,4 @@
-"""Compare target, Pixel-MSE, Pixel-FM, JEPA-flow, and JEPA-VAE futures.
+"""Compare target, Pixel-MSE, Flow-MLP, Flow-CNN, JEPA-flow, and JEPA-VAE futures.
 
 Rows are models; columns are horizons. JEPA has no native pixel head, so this
 script trains flow and VAE heads on frozen JEPA c_t features.
@@ -23,18 +23,20 @@ from toy_jepa.checkpoint import load_params, save_params
 from toy_jepa.config import EMBED_DIM, FINAL_PROB, K_TRAIN, MNIST_DIR, M_TRAIN
 from toy_jepa.data import WindowBatch, make_batch, sample_batch
 from toy_jepa.jepa_heads import (
-    sample_flow_head,
+    sample_flow_cnn_head,
     sample_vae_head,
-    train_flow_head,
+    train_flow_cnn_head,
     train_vae_head,
 )
 from toy_jepa.models import (
-    FlowParams,
+    FlowCNNModelParams,
+    FlowMLPParams,
     JEPAParams,
     PixelParams,
     apply_context,
     apply_pixel,
-    sample_flow,
+    sample_flow_cnn,
+    sample_flow_mlp,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,16 +78,17 @@ def main() -> None:
     stop = int(dataset.stop_time[sequence])
 
     pixel = cast(PixelParams, _load(ROOT / "checkpoints/p2/pixel" / f"seed_{SEED}" / "params.pkl"))
-    pixel_fm = cast(FlowParams, _load(ROOT / "checkpoints/p2/pixel_fm" / f"seed_{SEED}" / "params.pkl"))
+    flow_mlp = cast(FlowMLPParams, _load(ROOT / "checkpoints/p2/flow_mlp" / f"seed_{SEED}" / "params.pkl"))
+    flow_cnn = cast(FlowCNNModelParams, _load(ROOT / "checkpoints/p2/flow_cnn" / f"seed_{SEED}" / "params.pkl"))
     jepa = cast(JEPAParams, _load(ROOT / "checkpoints/p2/jepa" / f"seed_{SEED}" / "params.pkl"))
 
     expected = 2 * EMBED_DIM + 1 + 64 * 64
-    actual = pixel_fm.velocity.blocks[0].w.shape[0]
+    actual = flow_mlp.velocity.blocks[0].w.shape[0]
     if actual != expected:
         raise SystemExit(
-            "pixel-FM checkpoint predates the x_t-conditioned flow fix; "
+            "flow_mlp checkpoint predates the x_t-conditioned flow fix; "
             f"expected input {expected}, got {actual}. Retrain with "
-            "P2_SEED=0 uv run python scripts/train_pixel_flow.py"
+            "P2_SEED=0 uv run python scripts/train_flow_mlp.py"
         )
 
     rng = np.random.default_rng(SEED + 31)
@@ -100,7 +103,7 @@ def main() -> None:
     )
     c_t, query = jax.jit(lambda b: apply_context(jepa.context, b))(batch)
     data = (c_t, query, batch.target_frame)
-    flow_head = train_flow_head(
+    flow_head = train_flow_cnn_head(
         *data,
         key=jax.random.key(SEED + 71),
         steps=HEAD_STEPS,
@@ -116,17 +119,30 @@ def main() -> None:
     save_params(vae_head, ROOT / "checkpoints/p2/jepa" / f"seed_{SEED}" / "vae_head.pkl")
 
     queries = [(k, False) for k in K_VALUES] + [(stop - time, True)]
-    rows: dict[str, list[np.ndarray]] = {name: [] for name in ("target", "pixel-MSE", "pixel-FM", "JEPA flow", "JEPA VAE")}
+    rows: dict[str, list[np.ndarray]] = {
+        name: []
+        for name in (
+            "target",
+            "pixel-MSE",
+            "flow-MLP",
+            "flow-CNN",
+            "JEPA flow-CNN",
+            "JEPA VAE",
+        )
+    }
     for index, (k, final) in enumerate(queries):
         batch = _target_batch(dataset, sequence, time, k, final)
         c_t, query = apply_context(jepa.context, batch)
         rows["target"].append(np.asarray(batch.target_frame[0]))
         rows["pixel-MSE"].append(np.asarray(apply_pixel(pixel, batch)[2][0]))
-        rows["pixel-FM"].append(
-            np.asarray(sample_flow(pixel_fm, batch, jax.random.key(SEED + index), steps=FLOW_STEPS)[0])
+        rows["flow-MLP"].append(
+            np.asarray(sample_flow_mlp(flow_mlp, batch, jax.random.key(SEED + index), steps=FLOW_STEPS)[0])
         )
-        rows["JEPA flow"].append(
-            np.asarray(sample_flow_head(flow_head, c_t, query, jax.random.key(SEED + 100 + index), steps=FLOW_STEPS)[0])
+        rows["flow-CNN"].append(
+            np.asarray(sample_flow_cnn(flow_cnn, batch, jax.random.key(SEED + 50 + index), steps=FLOW_STEPS)[0])
+        )
+        rows["JEPA flow-CNN"].append(
+            np.asarray(sample_flow_cnn_head(flow_head, c_t, query, jax.random.key(SEED + 100 + index), steps=FLOW_STEPS)[0])
         )
         rows["JEPA VAE"].append(
             np.asarray(sample_vae_head(vae_head, c_t, query, jax.random.key(SEED + 200 + index))[0])

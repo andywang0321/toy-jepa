@@ -18,14 +18,16 @@ from .checkpoint import save_params
 from .data import WindowBatch, sample_batch
 from .features import bounce_features, digit_features, state_features
 from .models import (
-    FlowParams,
+    FlowCNNModelParams,
+    FlowMLPParams,
     JEPAParams,
     PixelParams,
     apply_context,
     apply_jepa,
-    flow_context,
-    flow_loss,
-    init_flow,
+    flow_cnn_loss,
+    flow_mlp_loss,
+    init_flow_cnn_model,
+    init_flow_mlp,
     init_jepa,
     init_pixel,
     jepa_loss,
@@ -41,15 +43,17 @@ from .probes import (
     state_metrics,
 )
 
-Params = PixelParams | JEPAParams | FlowParams
+Params = PixelParams | JEPAParams | FlowMLPParams | FlowCNNModelParams
 Apply = Callable[[Any, WindowBatch], Any]
 
 
 def _make_model(objective: str, key: jax.Array) -> tuple[Params, Callable[..., jax.Array]]:
     if objective == "pixel":
         return init_pixel(key), pixel_loss
-    if objective == "pixel_fm":
-        return init_flow(key), flow_loss
+    if objective == "flow_mlp":
+        return init_flow_mlp(key), flow_mlp_loss
+    if objective == "flow_cnn":
+        return init_flow_cnn_model(key), flow_cnn_loss
     if objective == "jepa":
         return init_jepa(key), jepa_loss
     raise ValueError(f"unknown objective {objective!r}")
@@ -71,7 +75,7 @@ def _train_model(
     val_batches = [
         sample_batch(rng, dataset, 1, config.batch_size, final_prob=FINAL_PROB) for _ in range(config.eval_batches)
     ]
-    is_flow = objective == "pixel_fm"
+    is_flow = objective in ("flow_mlp", "flow_cnn")
     train_key = jax.random.key(config.seed + 7)
     val_keys = tuple(jax.random.split(train_key, len(val_batches)))
 
@@ -117,16 +121,21 @@ def _train_model(
     def pixel_context(params: Params, batch: WindowBatch) -> Any:
         return apply_context(cast(PixelParams, params).context, batch)[0]
 
-    def flow_c_t(params: Params, batch: WindowBatch) -> Any:
-        return flow_context(cast(FlowParams, params), batch)
+    def flow_mlp_c_t(params: Params, batch: WindowBatch) -> Any:
+        return apply_context(cast(FlowMLPParams, params).context, batch)[0]
+
+    def flow_cnn_c_t(params: Params, batch: WindowBatch) -> Any:
+        return apply_context(cast(FlowCNNModelParams, params).context, batch)[0]
 
     def jepa_context(params: Params, batch: WindowBatch) -> Any:
         return apply_jepa(cast(JEPAParams, params), batch)[0]
 
     if objective == "pixel":
         apply: Apply = pixel_context
-    elif objective == "pixel_fm":
-        apply = flow_c_t
+    elif objective == "flow_mlp":
+        apply = flow_mlp_c_t
+    elif objective == "flow_cnn":
+        apply = flow_cnn_c_t
     else:
         apply = jepa_context
     return state.params, apply, history

@@ -17,7 +17,8 @@ The three phase-2 arms share:
 | Arm | Prediction | Loss |
 |---|---|---|
 | Pixel-MSE | future frame | pixel MSE |
-| Pixel-FM | future frame | rectified flow matching |
+| Flow-MLP | future frame | rectified flow matching, MLP velocity |
+| Flow-CNN | future frame | rectified flow matching, CNN velocity |
 | JEPA | future frame embedding | latent MSE, stop-gradient target |
 
 ## Protocol
@@ -49,7 +50,7 @@ src/toy_jepa/
   features.py, probes.py, metrics.py, checkpoint.py
   cnn.py, mlp.py, norm.py, types.py
 scripts/
-  train_pixel.py, train_pixel_flow.py, train_jepa.py
+  train_pixel.py, train_flow_mlp.py, train_flow_cnn.py, train_jepa.py
   analyze.py, run_all.sh, visualize.py, sample_models.py
 tests/
   test_data.py, test_models.py, test_train.py
@@ -73,19 +74,19 @@ export TINY_WORLDS_MNIST_DIR="$HOME/data/mnist"
 uv sync
 ```
 
-Three GPUs, full parallel:
+Four GPUs, full parallel:
 
 ```bash
-PIXEL_GPU=0 JEPA_GPU=1 FLOW_GPU=2 bash scripts/run_all.sh
+PIXEL_GPU=0 JEPA_GPU=1 FLOW_GPU=2 FLOW_CNN_GPU=3 bash scripts/run_all.sh
 ```
 
 One GPU, sequential:
 
 ```bash
-PIXEL_GPU=0 JEPA_GPU=0 FLOW_GPU=0 SEEDS="0 1 2" bash scripts/run_all.sh
+PIXEL_GPU=0 JEPA_GPU=0 FLOW_GPU=0 FLOW_CNN_GPU=0 SEEDS="0 1 2" bash scripts/run_all.sh
 ```
 
-Set all three GPU variables equal for serial execution, or all three distinct
+Set all four GPU variables equal for serial execution, or all four distinct
 for parallel execution. Subset seeds with `SEEDS="0 1 2"`.
 
 Outputs:
@@ -101,7 +102,7 @@ runs/analysis/p2_comparison.png
 
 ## Samples
 
-After training, plot target / Pixel-MSE / Pixel-FM / JEPA-decoded futures:
+After training, plot target / Pixel-MSE / Flow-MLP / Flow-CNN / JEPA futures:
 
 ```bash
 uv run python scripts/sample_models.py
@@ -114,8 +115,9 @@ so left-to-right is forward in time:
 ```text
 target
 pixel-MSE
-pixel-FM
-JEPA + flow
+flow-MLP
+flow-CNN
+JEPA + flow-CNN
 JEPA + VAE
 ```
 

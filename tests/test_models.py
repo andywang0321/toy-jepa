@@ -8,15 +8,19 @@ import numpy as np
 
 from toy_jepa.data import WindowBatch
 from toy_jepa.models import (
-    apply_flow,
+    apply_flow_cnn,
+    apply_flow_mlp,
     apply_jepa,
     apply_pixel,
-    flow_loss,
-    init_flow,
+    flow_cnn_loss,
+    flow_mlp_loss,
+    init_flow_cnn_model,
+    init_flow_mlp,
     init_jepa,
     init_pixel,
     jepa_loss,
     pixel_loss,
+    sample_flow_cnn,
 )
 
 
@@ -58,13 +62,26 @@ def test_jepa_forward_and_grad() -> None:
     assert np.isfinite(float(jax.tree.reduce(lambda a, b: a + jnp.sum(b), grads, 0.0)))
 
 
-def test_flow_forward_and_grad() -> None:
-    params = init_flow(jax.random.key(2), embed_dim=32, heads=4, layers=1, mlp_ratio=2, pixel_hidden=32)
-    c_t, x_t, residual = apply_flow(params, _batch(), jax.random.key(3))
+def test_flow_mlp_forward_and_grad() -> None:
+    params = init_flow_mlp(jax.random.key(2), embed_dim=32, heads=4, layers=1, mlp_ratio=2, pixel_hidden=32)
+    c_t, x_t, residual = apply_flow_mlp(params, _batch(), jax.random.key(3))
 
     assert c_t.shape == (2, 32)
     assert x_t.shape == (2, 64, 64)
     assert residual.shape == (2, 64, 64)
-    assert np.isfinite(float(flow_loss(params, _batch(), jax.random.key(3))))
-    grads = jax.grad(flow_loss, argnums=0)(params, _batch(), jax.random.key(3))
+    assert np.isfinite(float(flow_mlp_loss(params, _batch(), jax.random.key(3))))
+    grads = jax.grad(flow_mlp_loss, argnums=0)(params, _batch(), jax.random.key(3))
+    assert np.isfinite(float(jax.tree.reduce(lambda a, b: a + jnp.sum(b), grads, 0.0)))
+
+
+def test_flow_cnn_forward_and_grad() -> None:
+    params = init_flow_cnn_model(jax.random.key(4), embed_dim=32, heads=4, layers=1, mlp_ratio=2)
+    c_t, x_t, residual = apply_flow_cnn(params, _batch(), jax.random.key(5))
+
+    assert c_t.shape == (2, 32)
+    assert x_t.shape == (2, 64, 64)
+    assert residual.shape == (2, 64, 64)
+    assert sample_flow_cnn(params, _batch(), jax.random.key(6), steps=2).shape == (2, 64, 64)
+    assert np.isfinite(float(flow_cnn_loss(params, _batch(), jax.random.key(5))))
+    grads = jax.grad(flow_cnn_loss, argnums=0)(params, _batch(), jax.random.key(5))
     assert np.isfinite(float(jax.tree.reduce(lambda a, b: a + jnp.sum(b), grads, 0.0)))

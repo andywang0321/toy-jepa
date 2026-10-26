@@ -14,11 +14,17 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = {
     "pixel": ROOT / "runs" / "p2" / "pixel",
-    "pixel_fm": ROOT / "runs" / "p2" / "pixel_fm",
+    "flow_mlp": ROOT / "runs" / "p2" / "flow_mlp",
+    "flow_cnn": ROOT / "runs" / "p2" / "flow_cnn",
     "jepa": ROOT / "runs" / "p2" / "jepa",
 }
 OUT = ROOT / "runs" / "analysis"
-COLORS = {"pixel": "tab:orange", "pixel_fm": "tab:green", "jepa": "tab:blue"}
+COLORS = {
+    "pixel": "tab:orange",
+    "flow_mlp": "tab:green",
+    "flow_cnn": "tab:red",
+    "jepa": "tab:blue",
+}
 
 
 def _read(path: Path) -> dict[str, float]:
@@ -67,20 +73,20 @@ def _report(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
         "c_t_cosine",
         "c_t_rank",
     )
-    lines = ["# Phase 2 seeds", "", "| metric | pixel | pixel-FM | JEPA |", "|---|---:|---:|---:|"]
+    lines = ["# Phase 2 seeds", "", "| metric | pixel | flow-MLP | flow-CNN | JEPA |", "|---|---:|---:|---:|---:|"]
     for metric in metrics:
         cells = []
-        for objective in ("pixel", "pixel_fm", "jepa"):
+        for objective in ("pixel", "flow_mlp", "flow_cnn", "jepa"):
             value = runs.get(objective, {}).get(metric)
             cells.append("" if value is None else f"{value[0]:.4f} ± {value[1]:.4f} (n={value[2]})")
-        lines.append(f"| {metric} | {cells[0]} | {cells[1]} | {cells[2]} |")
-    lines += ["", "Final position MAE by context length:", "", "| m | pixel | pixel-FM | JEPA |", "|---:|---:|---:|---:|"]
+        lines.append(f"| {metric} | {cells[0]} | {cells[1]} | {cells[2]} | {cells[3]} |")
+    lines += ["", "Final position MAE by context length:", "", "| m | pixel | flow-MLP | flow-CNN | JEPA |", "|---:|---:|---:|---:|---:|"]
     for m in (3, 6, 12):
         cells = []
-        for objective in ("pixel", "pixel_fm", "jepa"):
+        for objective in ("pixel", "flow_mlp", "flow_cnn", "jepa"):
             value = runs.get(objective, {}).get(f"c_t_state_final_m{m}_position_mae")
             cells.append("" if value is None else f"{value[0]:.3f} ± {value[1]:.3f}")
-        lines.append(f"| {m} | {cells[0]} | {cells[1]} | {cells[2]} |")
+        lines.append(f"| {m} | {cells[0]} | {cells[1]} | {cells[2]} | {cells[3]} |")
     lines += ["", "![comparison](p2_comparison.png)", ""]
     (OUT / "p2_report.md").write_text("\n".join(lines))
 
@@ -100,9 +106,9 @@ def _plot(runs: dict[str, dict[str, tuple[float, float, int]]]) -> None:
 
     labels = ("final",)
     x = np.arange(len(labels))
-    for offset, objective, color in ((-0.2, "pixel", COLORS["pixel"]), (0.0, "pixel_fm", COLORS["pixel_fm"]), (0.2, "jepa", COLORS["jepa"])):
+    for offset, objective in zip((-0.27, -0.09, 0.09, 0.27), ("pixel", "flow_mlp", "flow_cnn", "jepa")):
         value = runs.get(objective, {}).get("c_t_state_final_position_mae", (np.nan, 0, 0))
-        axes[1].bar(x + offset, value[0], yerr=value[1], width=0.18, color=color, label=objective, capsize=3)
+        axes[1].bar(x + offset, value[0], yerr=value[1], width=0.16, color=COLORS[objective], label=objective, capsize=3)
     axes[1].set_xticks(x, labels)
     axes[1].set_ylabel("final position MAE")
     axes[1].set_title("terminal prediction")

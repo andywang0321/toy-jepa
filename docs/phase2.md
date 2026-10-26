@@ -37,8 +37,10 @@ per-frame CNN -> temporal transformer -> masked mean -> c_t
 The query is `(k / 64, final_flag)`, embedded and concatenated with `c_t`.
 
 - **Pixel-MSE:** MLP decoder predicts the target frame; loss is pixel MSE.
-- **Pixel-FM:** same context path, MLP velocity field
+- **Flow-MLP:** same context path, MLP velocity field
   `v(x_t, t, c_t, query)`; rectified flow matching on future frames.
+- **Flow-CNN:** same context path and flow objective, with a convolutional
+  encoder/decoder velocity field.
 - **JEPA:** MLP predictor predicts the target-frame embedding; the target
   encoder is stop-gradient; loss is latent MSE.
 
@@ -68,16 +70,16 @@ construction, so it is excluded from R²-style comparisons.
 bash scripts/run_all.sh
 ```
 
-Three GPUs:
+Four GPUs:
 
 ```bash
-PIXEL_GPU=0 JEPA_GPU=1 FLOW_GPU=2 bash scripts/run_all.sh
+PIXEL_GPU=0 JEPA_GPU=1 FLOW_GPU=2 FLOW_CNN_GPU=3 bash scripts/run_all.sh
 ```
 
 One GPU (sequential):
 
 ```bash
-PIXEL_GPU=0 JEPA_GPU=0 FLOW_GPU=0 SEEDS="0 1 2" bash scripts/run_all.sh
+PIXEL_GPU=0 JEPA_GPU=0 FLOW_GPU=0 FLOW_CNN_GPU=0 SEEDS="0 1 2" bash scripts/run_all.sh
 ```
 
 GPU variables must be all equal or all distinct. Each arm runs its seeds
@@ -85,10 +87,12 @@ sequentially on its assigned GPU.
 
 ```text
 runs/p2/pixel/seed_0..4/
-runs/p2/pixel_fm/seed_0..4/
+runs/p2/flow_mlp/seed_0..4/
+runs/p2/flow_cnn/seed_0..4/
 runs/p2/jepa/seed_0..4/
 checkpoints/p2/pixel/seed_0..4/params.pkl      # gitignored
-checkpoints/p2/pixel_fm/seed_0..4/params.pkl
+checkpoints/p2/flow_mlp/seed_0..4/params.pkl
+checkpoints/p2/flow_cnn/seed_0..4/params.pkl
 checkpoints/p2/jepa/seed_0..4/params.pkl
 runs/analysis/p2_report.md
 runs/analysis/p2_comparison.png
@@ -105,7 +109,7 @@ After checkpoints exist:
 uv run python scripts/sample_models.py
 ```
 
-The grid rows are target, Pixel-MSE, Pixel-FM, JEPA+flow, and JEPA+VAE;
+The grid rows are target, Pixel-MSE, Flow-MLP, Flow-CNN, JEPA+flow-CNN, and JEPA+VAE;
 columns are `k=3, 12, 24, 48`, `FINAL`, so left-to-right is forward in time.
 Both JEPA heads are trained on frozen `c_t`.
 

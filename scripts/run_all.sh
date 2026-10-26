@@ -7,6 +7,7 @@ cd "$ROOT"
 PIXEL_GPU="${PIXEL_GPU:-0}"
 JEPA_GPU="${JEPA_GPU:-3}"
 FLOW_GPU="${FLOW_GPU:-2}"
+FLOW_CNN_GPU="${FLOW_CNN_GPU:-1}"
 SEEDS="${SEEDS:-0 1 2 3 4}"
 
 pids=()
@@ -34,21 +35,24 @@ run_arm() {
     done
 }
 
-if [ "$PIXEL_GPU" = "$JEPA_GPU" ] && [ "$JEPA_GPU" = "$FLOW_GPU" ]; then
+if [ "$PIXEL_GPU" = "$JEPA_GPU" ] && [ "$JEPA_GPU" = "$FLOW_GPU" ] && [ "$FLOW_GPU" = "$FLOW_CNN_GPU" ]; then
     # One GPU: run everything sequentially.
     run_arm pixel "$PIXEL_GPU" train_pixel.py
+    run_arm flow_mlp "$FLOW_GPU" train_flow_mlp.py
+    run_arm flow_cnn "$FLOW_CNN_GPU" train_flow_cnn.py
     run_arm jepa "$JEPA_GPU" train_jepa.py
-    run_arm pixel_fm "$FLOW_GPU" train_pixel_flow.py
-elif [ "$PIXEL_GPU" != "$JEPA_GPU" ] && [ "$PIXEL_GPU" != "$FLOW_GPU" ] && [ "$JEPA_GPU" != "$FLOW_GPU" ]; then
-    # Three GPUs: one arm per GPU.
+elif [ "$PIXEL_GPU" != "$JEPA_GPU" ] && [ "$PIXEL_GPU" != "$FLOW_GPU" ] && [ "$PIXEL_GPU" != "$FLOW_CNN_GPU" ] && [ "$JEPA_GPU" != "$FLOW_GPU" ] && [ "$JEPA_GPU" != "$FLOW_CNN_GPU" ] && [ "$FLOW_GPU" != "$FLOW_CNN_GPU" ]; then
+    # Four GPUs: one arm per GPU.
     run_arm pixel "$PIXEL_GPU" train_pixel.py &
+    pids+=("$!")
+    run_arm flow_mlp "$FLOW_GPU" train_flow_mlp.py &
+    pids+=("$!")
+    run_arm flow_cnn "$FLOW_CNN_GPU" train_flow_cnn.py &
     pids+=("$!")
     run_arm jepa "$JEPA_GPU" train_jepa.py &
     pids+=("$!")
-    run_arm pixel_fm "$FLOW_GPU" train_pixel_flow.py &
-    pids+=("$!")
 else
-    echo "Set PIXEL_GPU/JEPA_GPU/FLOW_GPU all equal (serial) or all distinct (parallel)." >&2
+    echo "Set PIXEL_GPU/JEPA_GPU/FLOW_GPU/FLOW_CNN_GPU all equal (serial) or all distinct (parallel)." >&2
     exit 2
 fi
 

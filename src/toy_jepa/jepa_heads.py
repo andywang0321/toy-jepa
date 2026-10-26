@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
+from .flow_cnn import FlowCNNParams, apply_flow_cnn, init_flow_cnn
 from .mlp import MLPParams, apply_mlp, init_mlp
 
 
@@ -17,20 +18,25 @@ class VAEParams(NamedTuple):
     decoder: MLPParams
 
 
-def _flow_loss(head: MLPParams, batch: tuple[jax.Array, ...], key: jax.Array) -> jax.Array:
+def _flow_cnn_loss(
+    head: FlowCNNParams,
+    batch: tuple[jax.Array, ...],
+    key: jax.Array,
+) -> jax.Array:
     c_t, query, target = batch
     noise_key, time_key = jax.random.split(key)
     noise = jax.random.normal(noise_key, target.shape)
     time = jax.random.uniform(time_key, (target.shape[0], 1))
     x_t = (1.0 - time[..., None]) * noise + time[..., None] * target
-    velocity = apply_mlp(
+    velocity = apply_flow_cnn(
         head,
-        jnp.concatenate([c_t, query, time, x_t.reshape(x_t.shape[0], -1)], axis=-1),
-    ).reshape(-1, 64, 64)
+        x_t[..., None],
+        jnp.concatenate([c_t, query, time], axis=-1),
+    )
     return jnp.mean((velocity - (target - noise)) ** 2)
 
 
-def train_flow_head(
+def train_flow_cnn_head(
     c_t: jax.Array,
     query: jax.Array,
     target: jax.Array,
@@ -39,15 +45,15 @@ def train_flow_head(
     steps: int,
     batch_size: int,
     learning_rate: float = 1e-3,
-) -> MLPParams:
-    head = init_mlp(key, [2 * c_t.shape[-1] + 1 + 64 * 64, 512, 64 * 64])
+) -> FlowCNNParams:
+    head = init_flow_cnn(key, cond_dim=2 * c_t.shape[-1] + 1)
     optimizer = optax.adamw(learning_rate=learning_rate, weight_decay=1e-4)
     state = optimizer.init(head)
     rng = np.random.default_rng(int(jax.random.bits(key)))
 
     @jax.jit
     def step(head, state, batch, step_key):
-        loss, grads = jax.value_and_grad(_flow_loss)(head, batch, step_key)
+        loss, grads = jax.value_and_grad(_flow_cnn_loss)(head, batch, step_key)
         updates, state = optimizer.update(grads, state, head)
         return optax.apply_updates(head, updates), state, loss
 
@@ -62,12 +68,12 @@ def train_flow_head(
             step_key,
         )
         if step_number % 250 == 0:
-            print(f"jepa flow head {step_number:4d} loss {float(loss):.4f}")
+            print(f"jepa flow-CNN head {step_number:4d} loss {float(loss):.4f}")
     return head
 
 
-def sample_flow_head(
-    head: MLPParams,
+def sample_flow_cnn_head(
+    head: FlowCNNParams,
     c_t: jax.Array,
     query: jax.Array,
     key: jax.Array,
@@ -77,12 +83,11 @@ def sample_flow_head(
     frame = jax.random.normal(key, (c_t.shape[0], 64, 64))
     for index in range(steps):
         time = jnp.full((c_t.shape[0], 1), index / steps)
-        velocity = apply_mlp(
+        velocity = apply_flow_cnn(
             head,
-            jnp.concatenate(
-                [c_t, query, time, frame.reshape(frame.shape[0], -1)], axis=-1
-            ),
-        ).reshape(-1, 64, 64)
+            frame[..., None],
+            jnp.concatenate([c_t, query, time], axis=-1),
+        )
         frame = frame + velocity / steps
     return jnp.clip(frame, 0.0, 1.0)
 
