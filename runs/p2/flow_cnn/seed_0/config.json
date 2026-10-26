@@ -1,0 +1,19 @@
+{
+  "checkpoint_dir": "/home/andy/projects/toy-jepa/checkpoints/p2/flow_cnn/seed_0",
+  "seed": 0,
+  "num_samples": 10000,
+  "num_steps": 5000,
+  "batch_size": 64,
+  "eval_every": 250,
+  "eval_batches": 8,
+  "learning_rate": 0.0003,
+  "weight_decay": 0.01,
+  "readout_steps": 1500,
+  "readout_batch_size": 256,
+  "readout_lr": 0.001,
+  "readout_pairs": 2000,
+  "eval_pairs_per_k": 256,
+  "final_pairs": 512,
+  "objective": "flow_cnn",
+  "run_dir": "/home/andy/projects/toy-jepa/runs/p2/flow_cnn/seed_0"
+}
